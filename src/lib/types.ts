@@ -131,9 +131,13 @@ export type ServiceType = "nannies" | "car-seat" | "home-care";
 // Generic order union type
 export type Order = NannyOrder | CarSeatOrder | HomeCareOrder;
 
-// Strapi API Response
+// Strapi API Response (matches actual Strapi format)
 export interface StrapiResponse<T> {
-  data: T[];
+  data: Array<{
+    id: number;
+    documentId: string;
+    attributes: T;
+  }>;
   meta: {
     pagination: {
       page: number;

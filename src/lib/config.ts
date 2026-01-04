@@ -1,7 +1,11 @@
 import { ServiceConfig, ServiceType } from "./types";
 
 // Environment variable to enable mock data
-export const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" || true;
+export const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+
+console.log("USE_MOCK_DATA:", USE_MOCK_DATA);
+console.log("NANNIES_API_URL:", process.env.NEXT_PUBLIC_NANNIES_API_URL);
+console.log("NANNIES_API_TOKEN exists:", !!process.env.NANNIES_API_TOKEN);
 
 // Service configurations - each service can have its own Strapi instance
 // Configure these in your .env.local file:
@@ -13,8 +17,8 @@ export const serviceConfigs: Record<ServiceType, ServiceConfig> = {
   nannies: {
     id: "nannies",
     name: "Nanny Services",
-    apiUrl: process.env.NEXT_PUBLIC_NANNIES_API_URL || "http://localhost:1337",
-    endpoint: "/api/orders",
+    apiUrl: "", // Use Next.js proxy
+    endpoint: "/api/strapi/orders",
     authToken: process.env.NANNIES_API_TOKEN || "",
     color: "#0D363C",
     icon: "baby",
@@ -22,18 +26,18 @@ export const serviceConfigs: Record<ServiceType, ServiceConfig> = {
   "car-seat": {
     id: "car-seat",
     name: "Car Seat Services",
-    apiUrl: process.env.NEXT_PUBLIC_CAR_SEAT_API_URL || "http://localhost:1338",
-    endpoint: "/api/orders",
-    authToken: process.env.CAR_SEAT_API_TOKEN || "",
+    apiUrl: "", // Use Next.js proxy
+    endpoint: "/api/strapi/orders",
+    authToken: process.env.NANNIES_API_TOKEN || "", // Use same token
     color: "#4c6c5a",
     icon: "car",
   },
   "home-care": {
     id: "home-care",
     name: "Home Care Services",
-    apiUrl: process.env.NEXT_PUBLIC_HOME_CARE_API_URL || "http://localhost:1339",
-    endpoint: "/api/service-requests",
-    authToken: process.env.HOME_CARE_API_TOKEN || "",
+    apiUrl: "", // Use Next.js proxy
+    endpoint: "/api/strapi/orders", // All data is in orders collection
+    authToken: process.env.NANNIES_API_TOKEN || "", // Use same token
     color: "#D4AF37",
     icon: "home",
   },

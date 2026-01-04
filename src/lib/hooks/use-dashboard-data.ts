@@ -32,7 +32,11 @@ export function useDashboardData() {
 export function useDashboardStats() {
   const { data, isLoading, error } = useDashboardData();
 
+  console.log("📊 useDashboardStats:", { data: !!data, isLoading, error });
+
   const stats = data ? calculateDashboardStats(data.orders) : null;
+
+  console.log("Calculated stats:", stats);
 
   return {
     stats,

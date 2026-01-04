@@ -30,20 +30,38 @@ async function fetchFromStrapi<T>(
     });
   }
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.authToken}`,
-    },
-    cache: "no-store",
-  });
+  console.log(`🔍 Fetching from Strapi: ${url.toString()}`);
+  console.log(`Service: ${serviceType}, Has token: ${!!config.authToken}`);
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch from ${config.name}: ${response.statusText}`);
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.authToken}`,
+      },
+      cache: "no-store",
+    });
+
+    console.log(`📡 Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ API Error for ${serviceType}:`, errorText);
+      throw new Error(`Failed to fetch from ${config.name}: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Successfully fetched ${data?.data?.length || 0} items for ${serviceType}`);
+    console.log('Sample data:', data?.data?.[0]);
+
+    return data;
+  } catch (error) {
+    console.error(`💥 Fetch error for ${serviceType}:`, error);
+    throw error;
   }
-
-  return response.json();
 }
+
+
 
 // Fetch orders for a specific service
 export async function fetchOrders(
@@ -73,40 +91,314 @@ export async function fetchOrders(
   return fetchFromStrapi<Order>(serviceType, params);
 }
 
+// Fetch service requests for home care
+export async function fetchServiceRequests(
+  options?: {
+    page?: number;
+    pageSize?: number;
+    sort?: string;
+    filters?: Record<string, string>;
+  }
+): Promise<StrapiResponse<Order>> {
+  const serviceType = "home-care" as ServiceType;
+  const params: Record<string, string> = {
+    "pagination[page]": String(options?.page || 1),
+    "pagination[pageSize]": String(options?.pageSize || 100),
+    sort: options?.sort || "createdAt:desc",
+  };
+
+  if (options?.filters) {
+    Object.entries(options.filters).forEach(([key, value]) => {
+      params[`filters[${key}]`] = value;
+    });
+  }
+
+  // Add populate for relations
+  params["populate"] = "*";
+
+  return fetchFromStrapi<Order>(serviceType, params);
+}
+
+// Coupon redemption interface
+interface CouponRedemption {
+  coupon: any;
+  orderId: string;
+  phoneNumber: string;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  redemptionDate: string;
+  createdBy: any;
+  updatedBy: any;
+}
+
+// Fetch coupon redemptions
+export async function fetchCouponRedemptions(
+  options?: {
+    page?: number;
+    pageSize?: number;
+    sort?: string;
+    filters?: Record<string, string>;
+  }
+): Promise<StrapiResponse<CouponRedemption>> {
+  const serviceType = "nannies" as ServiceType; // Use nannies config for API access
+  const config = getServiceConfig(serviceType);
+
+  const url = new URL(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/strapi/coupon-redemptions`);
+  if (options) {
+    if (options.page) url.searchParams.append("pagination[page]", String(options.page));
+    if (options.pageSize) url.searchParams.append("pagination[pageSize]", String(options.pageSize || 100));
+    if (options.sort) url.searchParams.append("sort", options.sort || "createdAt:desc");
+
+    if (options.filters) {
+      Object.entries(options.filters).forEach(([key, value]) => {
+        url.searchParams.append(`filters[${key}]`, value);
+      });
+    }
+  }
+
+  url.searchParams.append("populate", "*");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.authToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`API Error for coupon redemptions:`, errorText);
+    throw new Error(`Failed to fetch coupon redemptions: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// Fetch coupon redemptions
+export async function fetchCouponRedemptions(
+  options?: {
+    page?: number;
+    pageSize?: number;
+    sort?: string;
+    filters?: Record<string, string>;
+  }
+): Promise<StrapiResponse<CouponRedemption>> {
+  const serviceType = "nannies" as ServiceType; // Use nannies config for API access
+  const config = getServiceConfig(serviceType);
+
+  const url = new URL(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/strapi/coupon-redemptions`);
+  if (options) {
+    if (options.page) url.searchParams.append("pagination[page]", String(options.page));
+    if (options.pageSize) url.searchParams.append("pagination[pageSize]", String(options.pageSize || 100));
+    if (options.sort) url.searchParams.append("sort", options.sort || "createdAt:desc");
+
+    if (options.filters) {
+      Object.entries(options.filters).forEach(([key, value]) => {
+        url.searchParams.append(`filters[${key}]`, value);
+      });
+    }
+  }
+
+  url.searchParams.append("populate", "*");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.authToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`API Error for coupon redemptions:`, errorText);
+    throw new Error(`Failed to fetch coupon redemptions: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+  }
+
+  url.searchParams.append("populate", "*");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.authToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch coupon redemptions: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// Transform Strapi order to app Order format
+function transformStrapiOrder(strapiOrder: { id: number; documentId: string; attributes: any }): Order {
+  const { id, documentId, attributes } = strapiOrder;
+
+  // Handle different field name variations
+  const paymentStatus = attributes.payment_status || attributes.paymentStatus || "Pending payment";
+  const requestStatus = attributes.request_status || attributes.requestStatus || "pending";
+  const total = attributes.total || attributes.price || 0;
+
+  // Base order structure
+  const order: any = {
+    id,
+    documentId,
+    orderId: attributes.orderId || `ORDER-${id}`,
+    price: attributes.price || total,
+    total,
+    originalPrice: attributes.originalPrice || attributes.price || total,
+    paymentStatus,
+    paymentId: attributes.payment_id || attributes.paymentId,
+    responseId: attributes.response_id || attributes.responseId,
+    currencyCode: attributes.currencyCode || attributes.currency_code || "AED",
+    smsConfirmationSent: attributes.smsConfirmationSent || attributes.sms_confirmation_sent || false,
+    requestStatus,
+    createdAt: attributes.createdAt,
+    updatedAt: attributes.updatedAt,
+  };
+
+  // Add service-specific fields
+  if (attributes.customer) {
+    order.customer = {
+      id: attributes.customer.data?.id,
+      fullName: attributes.customer.data?.attributes?.fullName || attributes.customer.data?.attributes?.full_name,
+      email: attributes.customer.data?.attributes?.email,
+      phone: attributes.customer.data?.attributes?.phone,
+    };
+  }
+
+  if (attributes.location) {
+    order.location = {
+      id: attributes.location.data?.id,
+      address: attributes.location.data?.attributes?.address,
+      city: attributes.location.data?.attributes?.city,
+      country: attributes.location.data?.attributes?.country,
+    };
+  }
+
+  // Service-specific fields for nannies
+  if (attributes.hours !== undefined) order.hours = attributes.hours;
+  if (attributes.type) order.type = attributes.type;
+  if (attributes.noOfDays !== undefined) order.noOfDays = attributes.noOfDays;
+  if (attributes.date) order.date = attributes.date;
+  if (attributes.time) order.time = attributes.time;
+  if (attributes.noOfChildren !== undefined) order.noOfChildren = attributes.noOfChildren;
+  if (attributes.locales) order.locales = attributes.locales;
+
+  // Service-specific fields for home care
+  if (attributes.fullName) order.fullName = attributes.fullName;
+  if (attributes.address) order.address = attributes.address;
+  if (attributes.duration !== undefined) order.duration = attributes.duration;
+  if (attributes.property_type) order.property_type = attributes.property_type;
+  if (attributes.supplies_needed !== undefined) order.supplies_needed = attributes.supplies_needed;
+  if (attributes.no_of_rooms !== undefined) order.no_of_rooms = attributes.no_of_rooms;
+  if (attributes.language_code) order.language_code = attributes.language_code;
+  if (attributes.countryCode) order.countryCode = attributes.countryCode;
+
+  return order as Order;
+}
+
 // Fetch all orders from all services (or use mock data)
 export async function fetchAllOrders(): Promise<{
   orders: Order[];
   byService: Record<ServiceType, Order[]>;
 }> {
+  console.log("🚀 fetchAllOrders called, USE_MOCK_DATA:", USE_MOCK_DATA);
+
   // Use mock data if enabled
   if (USE_MOCK_DATA) {
+    console.log("📦 Using mock data");
     // Simulate network delay for realistic UX
     await new Promise((resolve) => setTimeout(resolve, 500));
     return getCachedMockOrders();
   }
 
-  const results = await Promise.allSettled(
-    allServices.map((service) => fetchOrders(service.id))
-  );
+  console.log("🌐 Fetching real data from Strapi");
 
-  const byService: Record<ServiceType, Order[]> = {
-    nannies: [],
-    "car-seat": [],
-    "home-care": [],
-  };
+  try {
+    // Since all data appears to be in /api/orders, fetch once and categorize
+    const [ordersResponse, couponsResponse] = await Promise.allSettled([
+      fetchOrders("nannies"), // Fetch all orders from the main endpoint
+      fetchCouponRedemptions(),
+    ]);
 
-  results.forEach((result, index) => {
-    const serviceType = allServices[index].id;
-    if (result.status === "fulfilled") {
-      byService[serviceType] = result.value.data;
+    const byService: Record<ServiceType, Order[]> = {
+      nannies: [],
+      "car-seat": [],
+      "home-care": [],
+    };
+
+    // Process orders response (all services)
+    if (ordersResponse.status === "fulfilled") {
+      const ordersData = ordersResponse.value.data;
+      console.log(`📋 Processing ${ordersData.length} orders`);
+      ordersData.forEach((strapiOrder, index) => {
+        if (index < 2) { // Log first 2 orders
+          console.log(`Order ${index + 1} raw data:`, strapiOrder);
+        }
+        const order = transformStrapiOrder(strapiOrder);
+        console.log(`Order ${index + 1} transformed:`, order);
+        // For now, categorize all as nannies since we don't have a service type field
+        // You might need to add logic to determine service type based on order content
+        byService.nannies.push(order);
+      });
     } else {
-      console.error(`Failed to fetch ${serviceType} orders:`, result.reason);
+      console.error("Failed to fetch orders:", ordersResponse.reason);
     }
-  });
 
-  const orders = Object.values(byService).flat();
+    // Process coupons and link to orders
+    let couponsMap: Map<string, any> = new Map();
+    if (couponsResponse.status === "fulfilled") {
+      const couponsData = couponsResponse.value.data;
+      couponsData.forEach((coupon) => {
+        const { attributes } = coupon;
+        couponsMap.set(attributes.orderId, {
+          coupon: attributes.coupon,
+          discountType: attributes.discountType,
+          discountValue: attributes.discountValue,
+          couponCode: attributes.coupon?.data?.attributes?.code,
+        });
+      });
+    }
 
-  return { orders, byService };
+    // Apply coupons to orders
+    Object.values(byService).flat().forEach((order) => {
+      const couponData = couponsMap.get(order.orderId);
+      if (couponData) {
+        const { discountType, discountValue, couponCode } = couponData;
+        const originalPrice = order.originalPrice || order.price || order.total || 0;
+
+        let discountAmount = 0;
+        if (discountType === "percentage") {
+          discountAmount = (originalPrice * discountValue) / 100;
+        } else if (discountType === "fixed") {
+          discountAmount = discountValue;
+        }
+
+        order.discountedPrice = originalPrice - discountAmount;
+        order.couponCode = couponCode;
+        // Update total to reflect discount
+        if (order.total) {
+          order.total = order.discountedPrice;
+        }
+      }
+    });
+
+    const orders = Object.values(byService).flat();
+
+    return { orders, byService };
+  } catch (error) {
+    console.error("Failed to fetch data from Strapi:", error);
+    // Fallback to mock data on error
+    return getCachedMockOrders();
+  }
 }
 
 // Helper to get total from order (handles different field names)
