@@ -13,14 +13,25 @@ import {
 } from "recharts";
 import { SalesChartData } from "@/lib/types";
 
+// Format today's date for display
+function getTodayFormatted(): string {
+  return new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 interface EarningsChartProps {
   data: SalesChartData[];
+  projections?: { month: string; projected: number; actual?: number }[];
   title?: string;
   className?: string;
 }
 
 export function EarningsChart({
   data,
+  projections,
   title = "Earning Growth",
   className,
 }: EarningsChartProps) {
@@ -48,12 +59,18 @@ export function EarningsChart({
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-brand-primary" />
-            <span className="text-text-muted">Current</span>
+            <span className="text-text-muted">{getTodayFormatted()}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-neutral-300" />
             <span className="text-text-muted">Last Week</span>
           </div>
+          {projections && projections.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-brand-accent border border-dashed" />
+              <span className="text-text-muted">Projected</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -68,6 +85,10 @@ export function EarningsChart({
               <linearGradient id="colorPrevious" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#d9d9d9" stopOpacity={0.1} />
                 <stop offset="95%" stopColor="#d9d9d9" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="colorProjected" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid
@@ -117,6 +138,18 @@ export function EarningsChart({
               fillOpacity={1}
               fill="url(#colorCurrent)"
             />
+            {projections && projections.length > 0 && (
+              <Area
+                type="monotone"
+                dataKey="projected"
+                data={projections}
+                stroke="#D4AF37"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                fillOpacity={0.3}
+                fill="url(#colorProjected)"
+              />
+            )}
             {maxDataPoint && (
               <ReferenceDot
                 x={maxDataPoint.date}

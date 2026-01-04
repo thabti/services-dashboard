@@ -12,9 +12,8 @@ import {
   ServiceBreakdown,
   PaymentStatus,
 } from "./types";
-import { getServiceConfig, allServices, USE_MOCK_DATA } from "./config";
+import { getServiceConfig, allServices } from "./config";
 import { getPercentageChange } from "./utils";
-import { getCachedMockOrders } from "./mock-data";
 
 // Generic fetch function with auth headers
 async function fetchFromStrapi<T>(
@@ -23,7 +22,9 @@ async function fetchFromStrapi<T>(
 ): Promise<StrapiResponse<T>> {
   const config = getServiceConfig(serviceType);
 
-  const url = new URL(`${config.apiUrl}${config.endpoint}`);
+  // Use window.location.origin as base when apiUrl is empty (client-side proxy)
+  const baseUrl = config.apiUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  const url = new URL(`${baseUrl}${config.endpoint}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, value);
@@ -61,8 +62,6 @@ async function fetchFromStrapi<T>(
   }
 }
 
-
-
 // Fetch orders for a specific service
 export async function fetchOrders(
   serviceType: ServiceType,
@@ -75,7 +74,7 @@ export async function fetchOrders(
 ): Promise<StrapiResponse<Order>> {
   const params: Record<string, string> = {
     "pagination[page]": String(options?.page || 1),
-    "pagination[pageSize]": String(options?.pageSize || 100),
+    "pagination[pageSize]": String(options?.pageSize || 1000), // Increased for better analytics
     sort: options?.sort || "createdAt:desc",
   };
 
@@ -103,7 +102,7 @@ export async function fetchServiceRequests(
   const serviceType = "home-care" as ServiceType;
   const params: Record<string, string> = {
     "pagination[page]": String(options?.page || 1),
-    "pagination[pageSize]": String(options?.pageSize || 100),
+    "pagination[pageSize]": String(options?.pageSize || 1000),
     sort: options?.sort || "createdAt:desc",
   };
 
@@ -119,224 +118,332 @@ export async function fetchServiceRequests(
   return fetchFromStrapi<Order>(serviceType, params);
 }
 
-// Coupon redemption interface
-interface CouponRedemption {
-  coupon: any;
-  orderId: string;
-  phoneNumber: string;
-  discountType: "percentage" | "fixed";
-  discountValue: number;
-  redemptionDate: string;
-  createdBy: any;
-  updatedBy: any;
+// Projection calculation functions
+export function calculateRevenueProjection(
+  orders: Order[],
+  monthsAhead: number = 6
+): { month: string; projected: number; actual?: number }[] {
+  const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
+
+  // Get last 6 months of actual data
+  const now = new Date();
+  const projections = [];
+
+  for (let i = monthsAhead - 1; i >= 0; i--) {
+    const targetDate = new Date(now);
+    targetDate.setMonth(now.getMonth() - i);
+
+    const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+
+    // Calculate actual revenue for this month
+    const monthOrders = orders.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      return orderDate >= monthStart && orderDate <= monthEnd &&
+             confirmedStatuses.includes(getPaymentStatus(order));
+    });
+
+    const actualRevenue = monthOrders.reduce((sum, order) => sum + getOrderTotal(order), 0);
+
+    projections.push({
+      month: targetDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      actual: actualRevenue,
+      projected: actualRevenue // For now, use actual; will be enhanced with linear regression
+    });
+  }
+
+  // Apply linear regression for future projections
+  const validData = projections.filter(p => p.actual && p.actual > 0);
+  if (validData.length >= 3) {
+    // Simple linear regression
+    const n = validData.length;
+    const sumX = validData.reduce((sum, _, i) => sum + i, 0);
+    const sumY = validData.reduce((sum, p) => sum + p.actual!, 0);
+    const sumXY = validData.reduce((sum, p, i) => sum + i * p.actual!, 0);
+    const sumXX = validData.reduce((sum, _, i) => sum + i * i, 0);
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    // Apply projections for future months
+    projections.forEach((p, index) => {
+      if (!p.actual || p.actual === 0) {
+        p.projected = Math.max(0, slope * index + intercept);
+      } else {
+        p.projected = p.actual;
+      }
+    });
+  }
+
+  return projections;
 }
 
-// Fetch coupon redemptions
-export async function fetchCouponRedemptions(
+export function calculateServiceGrowthProjection(
+  byService: Record<ServiceType, Order[]>,
+  monthsAhead: number = 6
+): Record<ServiceType, { month: string; projected: number; actual?: number }[]> {
+  const result: Record<ServiceType, { month: string; projected: number; actual?: number }[]> = {
+    nannies: [],
+    "car-seat": [],
+    "home-care": []
+  };
+
+  Object.entries(byService).forEach(([serviceType, orders]) => {
+    const projections = calculateRevenueProjection(orders, monthsAhead);
+    // Convert revenue projections to order count projections
+    result[serviceType as ServiceType] = projections.map(p => ({
+      ...p,
+      projected: p.projected / 300, // Rough estimate: AED 300 per order
+      actual: p.actual ? p.actual / 300 : undefined
+    }));
+  });
+
+  return result;
+}
+
+// Transform Strapi order to app Order format
+// Supports both Strapi v4 (with attributes) and v5 (flat structure)
+function transformStrapiOrder(strapiOrder: any): Order {
+  console.log("🔄 Transforming order:", strapiOrder.id, "has attributes:", !!strapiOrder.attributes);
+
+  const { id, documentId } = strapiOrder;
+
+  // Strapi v5 uses flat structure, v4 uses nested attributes
+  // If attributes exists and has data, use it; otherwise use the flat structure
+  const data = strapiOrder.attributes && Object.keys(strapiOrder.attributes).length > 0
+    ? strapiOrder.attributes
+    : strapiOrder;
+
+  console.log("📋 Data keys available:", Object.keys(data));
+
+  // Handle different field name variations
+  const paymentStatus = data.payment_status || data.paymentStatus || "Pending payment";
+  const requestStatus = data.request_status || data.requestStatus || "pending";
+  const total = data.total || data.price || 0;
+
+  // Base order structure
+  const order: any = {
+    id,
+    documentId,
+    orderId: data.orderId || `ORDER-${id}`,
+    price: data.price || total,
+    total,
+    originalPrice: data.originalPrice || data.price || total,
+    paymentStatus,
+    paymentId: data.payment_id || data.paymentId,
+    responseId: data.response_id || data.responseId,
+    currencyCode: data.currencyCode || data.currency_code || "AED",
+    smsConfirmationSent: data.smsConfirmationSent || data.sms_confirmation_sent || false,
+    requestStatus,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+
+  // Add service-specific fields - handle both v4 nested and v5 flat customer structure
+  if (data.customer) {
+    // Strapi v5 flat structure
+    if (data.customer.fullName || data.customer.email) {
+      order.customer = {
+        id: data.customer.id,
+        fullName: data.customer.fullName || data.customer.full_name,
+        email: data.customer.email,
+        phone: data.customer.phone,
+      };
+    }
+    // Strapi v4 nested structure
+    else if (data.customer.data) {
+      order.customer = {
+        id: data.customer.data?.id,
+        fullName: data.customer.data?.attributes?.fullName || data.customer.data?.attributes?.full_name,
+        email: data.customer.data?.attributes?.email,
+        phone: data.customer.data?.attributes?.phone,
+      };
+    }
+  }
+
+  // Handle location - both v4 nested and v5 flat structure
+  if (data.location) {
+    // Strapi v5 flat structure
+    if (data.location.address || data.location.city) {
+      order.location = {
+        id: data.location.id,
+        address: data.location.address,
+        city: data.location.city,
+        country: data.location.country,
+      };
+    }
+    // Strapi v4 nested structure
+    else if (data.location.data) {
+      order.location = {
+        id: data.location.data?.id,
+        address: data.location.data?.attributes?.address,
+        city: data.location.data?.attributes?.city,
+        country: data.location.data?.attributes?.country,
+      };
+    }
+  }
+
+  // Service-specific fields for nannies
+  if (data.hours !== undefined) order.hours = data.hours;
+  if (data.type) order.type = data.type;
+  if (data.noOfDays !== undefined) order.noOfDays = data.noOfDays;
+  if (data.date) order.date = data.date;
+  if (data.time) order.time = data.time;
+  if (data.noOfChildren !== undefined) order.noOfChildren = data.noOfChildren;
+  if (data.locales) order.locales = data.locales;
+
+  // Service-specific fields for home care (inline customer data, not a relation)
+  if (data.fullName) order.fullName = data.fullName;
+  if (data.email) order.email = data.email;
+  if (data.phone) order.phone = data.phone;
+  if (data.address) order.address = data.address;
+  if (data.special_instructions) order.special_instructions = data.special_instructions;
+  if (data.duration !== undefined) order.duration = data.duration;
+  if (data.property_type) order.property_type = data.property_type;
+  if (data.supplies_needed !== undefined) order.supplies_needed = data.supplies_needed;
+  if (data.no_of_rooms !== undefined) order.no_of_rooms = data.no_of_rooms;
+  if (data.language_code) order.language_code = data.language_code;
+  if (data.countryCode) order.countryCode = data.countryCode;
+
+  // Also store snake_case versions for home care compatibility
+  if (data.payment_status) order.payment_status = data.payment_status;
+  if (data.request_status) order.request_status = data.request_status;
+
+  return order as Order;
+}
+
+// Detect service type based on order attributes
+function detectServiceType(order: Order): ServiceType {
+  const data = order as any;
+
+  console.log("🔍 Detecting service type for order:", order.orderId, "data keys:", Object.keys(data));
+
+  // Check for nanny-specific fields (multiple possible field names)
+  if (data.hours !== undefined || data.noOfChildren !== undefined ||
+      data.numberOfHours || data.children || data.numberOfChildren ||
+      data.childAgeGroups || data.no_of_children ||
+      data.type === "day" || data.type === "week" || data.type === "month" ||
+      data.bookingType === "nanny" || data.serviceType === "nanny") {
+    console.log("👶 Detected as nannies service");
+    return "nannies";
+  }
+
+  // Check for home care specific fields
+  if (data.property_type || data.supplies_needed !== undefined ||
+      data.no_of_rooms !== undefined || data.duration !== undefined ||
+      data.fullName || data.address?.street || data.cleaningType) {
+    console.log("🏠 Detected as home-care service");
+    return "home-care";
+  }
+
+  // Check for car seat specific fields
+  if (data.carType || data.installationType || data.car_model ||
+      data.seatType || data.serviceType === "car-seat") {
+    console.log("🚗 Detected as car-seat service");
+    return "car-seat";
+  }
+
+  // For the nannies page, default to nannies service
+  console.log("🤔 No specific indicators found, defaulting to nannies");
+  return "nannies"; // Default fallback for nannies page
+}
+
+// Fetch home care orders from dedicated endpoint
+export async function fetchHomeCareOrders(
   options?: {
     page?: number;
     pageSize?: number;
     sort?: string;
     filters?: Record<string, string>;
   }
-): Promise<StrapiResponse<CouponRedemption>> {
-  const serviceType = "nannies" as ServiceType; // Use nannies config for API access
-  const config = getServiceConfig(serviceType);
-
-  const url = new URL(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/strapi/coupon-redemptions`);
-  if (options) {
-    if (options.page) url.searchParams.append("pagination[page]", String(options.page));
-    if (options.pageSize) url.searchParams.append("pagination[pageSize]", String(options.pageSize || 100));
-    if (options.sort) url.searchParams.append("sort", options.sort || "createdAt:desc");
-
-    if (options.filters) {
-      Object.entries(options.filters).forEach(([key, value]) => {
-        url.searchParams.append(`filters[${key}]`, value);
-      });
-    }
-  }
-
-  url.searchParams.append("populate", "*");
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.authToken}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`API Error for coupon redemptions:`, errorText);
-    throw new Error(`Failed to fetch coupon redemptions: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-// Transform Strapi order to app Order format
-function transformStrapiOrder(strapiOrder: { id: number; documentId: string; attributes: any }): Order {
-  const { id, documentId, attributes } = strapiOrder;
-
-  // Handle different field name variations
-  const paymentStatus = attributes.payment_status || attributes.paymentStatus || "Pending payment";
-  const requestStatus = attributes.request_status || attributes.requestStatus || "pending";
-  const total = attributes.total || attributes.price || 0;
-
-  // Base order structure
-  const order: any = {
-    id,
-    documentId,
-    orderId: attributes.orderId || `ORDER-${id}`,
-    price: attributes.price || total,
-    total,
-    originalPrice: attributes.originalPrice || attributes.price || total,
-    paymentStatus,
-    paymentId: attributes.payment_id || attributes.paymentId,
-    responseId: attributes.response_id || attributes.responseId,
-    currencyCode: attributes.currencyCode || attributes.currency_code || "AED",
-    smsConfirmationSent: attributes.smsConfirmationSent || attributes.sms_confirmation_sent || false,
-    requestStatus,
-    createdAt: attributes.createdAt,
-    updatedAt: attributes.updatedAt,
+): Promise<StrapiResponse<Order>> {
+  const params: Record<string, string> = {
+    "pagination[page]": String(options?.page || 1),
+    "pagination[pageSize]": String(options?.pageSize || 1000),
+    sort: options?.sort || "createdAt:desc",
   };
 
-  // Add service-specific fields
-  if (attributes.customer) {
-    order.customer = {
-      id: attributes.customer.data?.id,
-      fullName: attributes.customer.data?.attributes?.fullName || attributes.customer.data?.attributes?.full_name,
-      email: attributes.customer.data?.attributes?.email,
-      phone: attributes.customer.data?.attributes?.phone,
-    };
+  if (options?.filters) {
+    Object.entries(options.filters).forEach(([key, value]) => {
+      params[`filters[${key}]`] = value;
+    });
   }
 
-  if (attributes.location) {
-    order.location = {
-      id: attributes.location.data?.id,
-      address: attributes.location.data?.attributes?.address,
-      city: attributes.location.data?.attributes?.city,
-      country: attributes.location.data?.attributes?.country,
-    };
-  }
+  // Add populate for relations
+  params["populate"] = "*";
 
-  // Service-specific fields for nannies
-  if (attributes.hours !== undefined) order.hours = attributes.hours;
-  if (attributes.type) order.type = attributes.type;
-  if (attributes.noOfDays !== undefined) order.noOfDays = attributes.noOfDays;
-  if (attributes.date) order.date = attributes.date;
-  if (attributes.time) order.time = attributes.time;
-  if (attributes.noOfChildren !== undefined) order.noOfChildren = attributes.noOfChildren;
-  if (attributes.locales) order.locales = attributes.locales;
-
-  // Service-specific fields for home care
-  if (attributes.fullName) order.fullName = attributes.fullName;
-  if (attributes.address) order.address = attributes.address;
-  if (attributes.duration !== undefined) order.duration = attributes.duration;
-  if (attributes.property_type) order.property_type = attributes.property_type;
-  if (attributes.supplies_needed !== undefined) order.supplies_needed = attributes.supplies_needed;
-  if (attributes.no_of_rooms !== undefined) order.no_of_rooms = attributes.no_of_rooms;
-  if (attributes.language_code) order.language_code = attributes.language_code;
-  if (attributes.countryCode) order.countryCode = attributes.countryCode;
-
-  return order as Order;
+  return fetchFromStrapi<Order>("home-care", params);
 }
 
-// Fetch all orders from all services (or use mock data)
+// Fetch all orders from all services
 export async function fetchAllOrders(): Promise<{
   orders: Order[];
   byService: Record<ServiceType, Order[]>;
 }> {
-  console.log("🚀 fetchAllOrders called, USE_MOCK_DATA:", USE_MOCK_DATA);
+  console.log("🚀 fetchAllOrders called");
 
-  // Use mock data if enabled
-  if (USE_MOCK_DATA) {
-    console.log("📦 Using mock data");
-    // Simulate network delay for realistic UX
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return getCachedMockOrders();
-  }
+  // Fetch from both nannies and home care endpoints in parallel
+  const [nanniesResponse, homeCareResponse] = await Promise.allSettled([
+    fetchOrders("nannies"), // Fetch nannies orders
+    fetchHomeCareOrders(), // Fetch home care orders from dedicated endpoint
+  ]);
 
-  console.log("🌐 Fetching real data from Strapi");
+  const byService: Record<ServiceType, Order[]> = {
+    nannies: [],
+    "car-seat": [],
+    "home-care": [],
+  };
 
-  try {
-    // Since all data appears to be in /api/orders, fetch once and categorize
-    const [ordersResponse, couponsResponse] = await Promise.allSettled([
-      fetchOrders("nannies"), // Fetch all orders from the main endpoint
-      fetchCouponRedemptions(),
-    ]);
-
-    const byService: Record<ServiceType, Order[]> = {
-      nannies: [],
-      "car-seat": [],
-      "home-care": [],
-    };
-
-    // Process orders response (all services)
-    if (ordersResponse.status === "fulfilled") {
-      const ordersData = ordersResponse.value.data;
-      console.log(`📋 Processing ${ordersData.length} orders`);
-      ordersData.forEach((strapiOrder, index) => {
-        if (index < 2) { // Log first 2 orders
-          console.log(`Order ${index + 1} raw data:`, strapiOrder);
-        }
-        const order = transformStrapiOrder(strapiOrder);
-        console.log(`Order ${index + 1} transformed:`, order);
-        // For now, categorize all as nannies since we don't have a service type field
-        // You might need to add logic to determine service type based on order content
-        byService.nannies.push(order);
-      });
-    } else {
-      console.error("Failed to fetch orders:", ordersResponse.reason);
-    }
-
-    // Process coupons and link to orders
-    let couponsMap: Map<string, any> = new Map();
-    if (couponsResponse.status === "fulfilled") {
-      const couponsData = couponsResponse.value.data;
-      couponsData.forEach((coupon) => {
-        const { attributes } = coupon;
-        couponsMap.set(attributes.orderId, {
-          coupon: attributes.coupon,
-          discountType: attributes.discountType,
-          discountValue: attributes.discountValue,
-          couponCode: attributes.coupon?.data?.attributes?.code,
-        });
-      });
-    }
-
-    // Apply coupons to orders
-    Object.values(byService).flat().forEach((order) => {
-      const couponData = couponsMap.get(order.orderId);
-      if (couponData) {
-        const { discountType, discountValue, couponCode } = couponData;
-        const originalPrice = order.originalPrice || order.price || order.total || 0;
-
-        let discountAmount = 0;
-        if (discountType === "percentage") {
-          discountAmount = (originalPrice * discountValue) / 100;
-        } else if (discountType === "fixed") {
-          discountAmount = discountValue;
-        }
-
-        order.discountedPrice = originalPrice - discountAmount;
-        order.couponCode = couponCode;
-        // Update total to reflect discount
-        if (order.total) {
-          order.total = order.discountedPrice;
-        }
+  // Process nannies orders response
+  if (nanniesResponse.status === "fulfilled") {
+    const ordersData = nanniesResponse.value.data;
+    console.log(`📋 Processing ${ordersData.length} nannies orders`);
+    ordersData.forEach((strapiOrder: any, index: number) => {
+      if (index < 3) { // Log first 3 orders for debugging
+        console.log(`Nannies Order ${index + 1} raw data:`, strapiOrder);
       }
+      const order = transformStrapiOrder(strapiOrder);
+      if (index < 3) {
+        console.log(`Nannies Order ${index + 1} transformed:`, order);
+      }
+
+      // Detect service type and categorize accordingly
+      const serviceType = detectServiceType(order);
+      byService[serviceType].push(order);
     });
-
-    const orders = Object.values(byService).flat();
-
-    return { orders, byService };
-  } catch (error) {
-    console.error("Failed to fetch data from Strapi:", error);
-    // Fallback to mock data on error
-    return getCachedMockOrders();
+  } else {
+    console.error("Failed to fetch nannies orders:", nanniesResponse.reason);
   }
+
+  // Process home care orders response
+  if (homeCareResponse.status === "fulfilled") {
+    const ordersData = homeCareResponse.value.data;
+    console.log(`📋 Processing ${ordersData.length} home care orders`);
+    ordersData.forEach((strapiOrder: any, index: number) => {
+      if (index < 3) { // Log first 3 orders for debugging
+        console.log(`Home Care Order ${index + 1} raw data:`, strapiOrder);
+      }
+      const order = transformStrapiOrder(strapiOrder);
+      if (index < 3) {
+        console.log(`Home Care Order ${index + 1} transformed:`, order);
+      }
+
+      // All orders from home care endpoint go to home-care
+      byService["home-care"].push(order);
+    });
+  } else {
+    console.error("Failed to fetch home care orders:", homeCareResponse.reason);
+  }
+
+  console.log(`📊 Service breakdown:`, {
+    nannies: byService.nannies.length,
+    "car-seat": byService["car-seat"].length,
+    "home-care": byService["home-care"].length,
+  });
+
+  const orders = Object.values(byService).flat();
+
+  return { orders, byService };
 }
 
 // Helper to get total from order (handles different field names)
@@ -418,9 +525,21 @@ export function calculateServiceBreakdown(
 
 // Generate sales chart data (last 7 days)
 export function generateSalesChartData(orders: Order[]): SalesChartData[] {
+  console.log(`📊 generateSalesChartData called with ${orders.length} orders`);
+
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
   const data: SalesChartData[] = [];
   const today = new Date();
+
+  // Log sample orders for debugging
+  if (orders.length > 0) {
+    console.log("📊 Sample order for chart data:", {
+      id: orders[0].id,
+      createdAt: orders[0].createdAt,
+      paymentStatus: getPaymentStatus(orders[0]),
+      total: getOrderTotal(orders[0])
+    });
+  }
 
   for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
@@ -450,6 +569,7 @@ export function generateSalesChartData(orders: Order[]): SalesChartData[] {
     });
   }
 
+  console.log(`📊 generateSalesChartData returning ${data.length} data points:`, data);
   return data;
 }
 

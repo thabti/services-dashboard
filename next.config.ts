@@ -1,14 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/strapi/:path*',
-        destination: 'https://realistic-hope-d6c1c5274b.strapiapp.com/api/:path*',
-      },
-    ];
-  },
+  // API routes in src/app/api/strapi/ handle proxying with proper authentication
 };
 
 export default nextConfig;

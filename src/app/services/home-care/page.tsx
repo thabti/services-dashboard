@@ -9,8 +9,6 @@ import {
 import {
   SalesChart,
   SalesChartSkeleton,
-  VisitorsChart,
-  VisitorsChartSkeleton,
   EarningsChart,
   EarningsChartSkeleton,
 } from "@/components/charts";
@@ -22,34 +20,28 @@ import {
   TopServices,
   TopServicesSkeleton,
 } from "@/components/dashboard/top-services";
-import {
-  useDashboardStats,
-  useSalesChartData,
-  useVisitorsByService,
-  useEarningData,
-  useRecentTransactions,
-  useTopServices,
-} from "@/lib/hooks/use-dashboard-data";
-export default function Dashboard() {
-  const { stats, isLoading: statsLoading } = useDashboardStats();
-  const { chartData, isLoading: chartLoading } = useSalesChartData();
-  const { visitors, isLoading: visitorsLoading } = useVisitorsByService();
-  const { earningData, isLoading: earningsLoading } = useEarningData();
-  const { transactions, isLoading: transactionsLoading } = useRecentTransactions(5);
-  const { topServices, isLoading: servicesLoading } = useTopServices(3);
+import { useHomeCareData } from "@/lib/hooks/use-home-care-data";
+
+export default function HomeCareServicePage() {
+  const {
+    stats,
+    chartData,
+    earningData,
+    transactions,
+    topServices,
+    revenueProjection,
+    isLoading
+  } = useHomeCareData();
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <Header
-          title="Dashboard"
-          subtitle="Services analytics overview"
-        />
+        <Header title="Home Care Services" subtitle="Analytics for home care orders" />
       </div>
 
       {/* Stats Cards */}
-      {statsLoading ? (
+      {isLoading ? (
         <StatsGridSkeleton />
       ) : stats ? (
         <>
@@ -63,49 +55,34 @@ export default function Dashboard() {
       ) : null}
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        {/* Sales Chart */}
-        <div className="lg:col-span-1">
-          {chartLoading ? (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div>
+          {isLoading ? (
             <SalesChartSkeleton />
           ) : (
-            <SalesChart data={chartData} />
+            <SalesChart data={chartData} projections={revenueProjection} />
           )}
         </div>
-
-        {/* Visitors Chart */}
-        <div className="lg:col-span-1">
-          {visitorsLoading ? (
-            <VisitorsChartSkeleton />
-          ) : (
-            <VisitorsChart data={visitors} />
-          )}
-        </div>
-
-        {/* Earnings Chart */}
-        <div className="lg:col-span-1">
-          {earningsLoading ? (
+        <div>
+          {isLoading ? (
             <EarningsChartSkeleton />
           ) : (
-            <EarningsChart data={earningData} />
+            <EarningsChart data={earningData} projections={revenueProjection} />
           )}
         </div>
       </div>
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Recent Transactions */}
         <div>
-          {transactionsLoading ? (
+          {isLoading ? (
             <RecentTransactionsSkeleton />
           ) : (
             <RecentTransactions transactions={transactions} />
           )}
         </div>
-
-        {/* Top Services */}
         <div>
-          {servicesLoading ? (
+          {isLoading ? (
             <TopServicesSkeleton />
           ) : (
             <TopServices services={topServices} />

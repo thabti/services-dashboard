@@ -12,6 +12,15 @@ import {
   Cell,
 } from "recharts";
 
+// Format today's date for display
+function getTodayFormatted(): string {
+  return new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 interface VisitorsChartProps {
   data: { service: string; orders: number; color: string }[];
   title?: string;
@@ -20,7 +29,7 @@ interface VisitorsChartProps {
 
 export function VisitorsChart({
   data,
-  title = "Total Visitors",
+  title = "Orders by Service",
   className,
 }: VisitorsChartProps) {
   // Calculate total
@@ -43,7 +52,7 @@ export function VisitorsChart({
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-brand-primary" />
-            <span className="text-text-muted">Current</span>
+            <span className="text-text-muted">{getTodayFormatted()}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-neutral-300" />

@@ -1,12 +1,5 @@
 import { ServiceConfig, ServiceType } from "./types";
 
-// Environment variable to enable mock data
-export const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
-
-console.log("USE_MOCK_DATA:", USE_MOCK_DATA);
-console.log("NANNIES_API_URL:", process.env.NEXT_PUBLIC_NANNIES_API_URL);
-console.log("NANNIES_API_TOKEN exists:", !!process.env.NANNIES_API_TOKEN);
-
 // Service configurations - each service can have its own Strapi instance
 // Configure these in your .env.local file:
 // NEXT_PUBLIC_NANNIES_API_URL=https://your-nannies-strapi.com
@@ -36,8 +29,8 @@ export const serviceConfigs: Record<ServiceType, ServiceConfig> = {
     id: "home-care",
     name: "Home Care Services",
     apiUrl: "", // Use Next.js proxy
-    endpoint: "/api/strapi/orders", // All data is in orders collection
-    authToken: process.env.NANNIES_API_TOKEN || "", // Use same token
+    endpoint: "/api/strapi/home-care", // Dedicated home care endpoint
+    authToken: process.env.HOME_CARE_API_TOKEN || "",
     color: "#D4AF37",
     icon: "home",
   },

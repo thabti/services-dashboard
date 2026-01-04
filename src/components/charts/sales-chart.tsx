@@ -13,14 +13,25 @@ import {
 } from "recharts";
 import { SalesChartData } from "@/lib/types";
 
+// Format today's date for display
+function getTodayFormatted(): string {
+  return new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 interface SalesChartProps {
   data: SalesChartData[];
+  projections?: { month: string; projected: number; actual?: number }[];
   title?: string;
   className?: string;
 }
 
 export function SalesChart({
   data,
+  projections,
   title = "Total Sales",
   className,
 }: SalesChartProps) {
@@ -45,16 +56,22 @@ export function SalesChart({
             {formatCurrency(total, "AED")}
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-brand-primary" />
-            <span className="text-text-muted">Current</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-neutral-300" />
-            <span className="text-text-muted">Last Month</span>
-          </div>
-        </div>
+         <div className="flex items-center gap-4 text-xs">
+           <div className="flex items-center gap-1.5">
+             <span className="size-2 rounded-full bg-brand-primary" />
+             <span className="text-text-muted">{getTodayFormatted()}</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+             <span className="size-2 rounded-full bg-neutral-300" />
+             <span className="text-text-muted">Last Month</span>
+           </div>
+           {projections && projections.length > 0 && (
+             <div className="flex items-center gap-1.5">
+               <span className="size-2 rounded-full bg-brand-accent border border-dashed" />
+               <span className="text-text-muted">Projected</span>
+             </div>
+           )}
+         </div>
       </div>
 
       <div className="h-64">
@@ -107,6 +124,18 @@ export function SalesChart({
               dot={false}
               activeDot={{ r: 6, fill: "#0D363C" }}
             />
+            {projections && projections.length > 0 && (
+              <Line
+                type="monotone"
+                dataKey="projected"
+                data={projections}
+                stroke="#D4AF37"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+                activeDot={{ r: 4, fill: "#D4AF37" }}
+              />
+            )}
             {maxDataPoint && (
               <ReferenceDot
                 x={maxDataPoint.date}
