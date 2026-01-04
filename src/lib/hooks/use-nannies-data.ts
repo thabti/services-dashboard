@@ -14,15 +14,15 @@ import {
 import { ServiceType, Order } from "@/lib/types";
 
 // Query key for nannies-specific data
-export const nanniesQueryKey = ["orders", "nannies"] as const;
+export const nanniesQueryKey = ["orders", "nannies", "v2"] as const;
 
 // Hook to fetch nannies-only dashboard data
 export function useNanniesData() {
   const { data, isLoading, error } = useQuery({
     queryKey: nanniesQueryKey,
     queryFn: fetchAllOrders,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 1000 * 60 * 5,
+    staleTime: 0, // Always refetch
+    gcTime: 0, // Don't cache
   });
 
   console.log("🔍 useNanniesData - Raw data:", data);
