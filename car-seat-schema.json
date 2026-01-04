@@ -1,0 +1,101 @@
+{
+  "kind": "collectionType",
+  "collectionName": "orders",
+  "info": {
+    "singularName": "order",
+    "pluralName": "orders",
+    "displayName": "Order"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "orderId": {
+      "type": "string",
+      "unique": true
+    },
+    "package": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::service.service"
+    },
+    "customer": {
+      "type": "component",
+      "component": "content.customer",
+      "repeatable": false
+    },
+    "location": {
+      "type": "component",
+      "component": "content.location",
+      "repeatable": false
+    },
+    "price": {
+      "type": "decimal"
+    },
+    "total": {
+      "type": "decimal"
+    },
+    "paymentStatus": {
+      "type": "enumeration",
+      "default": "Pending payment",
+      "enum": [
+        "Pending payment",
+        "Payment failed",
+        "Payment confirmed",
+        "Rescheduled",
+        "Sent to vendor",
+        "Cancelled",
+        "QC/Feedback",
+        "Completed",
+        "Refunded"
+      ]
+    },
+    "paymentId": {
+      "type": "string"
+    },
+    "responseId": {
+      "type": "string"
+    },
+    "currencyCode": {
+      "type": "enumeration",
+      "enum": [
+        "AED",
+        "SAR"
+      ]
+    },
+    "locales": {
+      "type": "enumeration",
+      "enum": [
+        "en",
+        "ar"
+      ]
+    },
+    "smsConfirmationSent": {
+      "type": "boolean"
+    },
+    "customerId": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::customer.customer"
+    },
+    "requestStatus": {
+      "type": "enumeration",
+      "default": "pending",
+      "enum": [
+        "pending",
+        "cancelled",
+        "completed"
+      ]
+    },
+    "originalPrice": {
+      "type": "decimal"
+    },
+    "couponCode": {
+      "type": "string"
+    },
+    "discountedPrice": {
+      "type": "decimal"
+    }
+  }
+}
