@@ -175,68 +175,6 @@ export async function fetchCouponRedemptions(
   return response.json();
 }
 
-// Fetch coupon redemptions
-export async function fetchCouponRedemptions(
-  options?: {
-    page?: number;
-    pageSize?: number;
-    sort?: string;
-    filters?: Record<string, string>;
-  }
-): Promise<StrapiResponse<CouponRedemption>> {
-  const serviceType = "nannies" as ServiceType; // Use nannies config for API access
-  const config = getServiceConfig(serviceType);
-
-  const url = new URL(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/strapi/coupon-redemptions`);
-  if (options) {
-    if (options.page) url.searchParams.append("pagination[page]", String(options.page));
-    if (options.pageSize) url.searchParams.append("pagination[pageSize]", String(options.pageSize || 100));
-    if (options.sort) url.searchParams.append("sort", options.sort || "createdAt:desc");
-
-    if (options.filters) {
-      Object.entries(options.filters).forEach(([key, value]) => {
-        url.searchParams.append(`filters[${key}]`, value);
-      });
-    }
-  }
-
-  url.searchParams.append("populate", "*");
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.authToken}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`API Error for coupon redemptions:`, errorText);
-    throw new Error(`Failed to fetch coupon redemptions: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-  }
-
-  url.searchParams.append("populate", "*");
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.authToken}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch coupon redemptions: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 // Transform Strapi order to app Order format
 function transformStrapiOrder(strapiOrder: { id: number; documentId: string; attributes: any }): Order {
   const { id, documentId, attributes } = strapiOrder;
