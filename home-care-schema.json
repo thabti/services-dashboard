@@ -1,0 +1,134 @@
+{
+  "kind": "collectionType",
+  "collectionName": "service_requests",
+  "info": {
+    "singularName": "service-request",
+    "pluralName": "service-requests",
+    "displayName": "Order",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "fullName": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email",
+      "required": true
+    },
+    "phone": {
+      "type": "string",
+      "required": true
+    },
+    "address": {
+      "type": "component",
+      "repeatable": false,
+      "component": "address.address"
+    },
+    "special_instructions": {
+      "type": "text"
+    },
+    "date": {
+      "type": "date"
+    },
+    "time": {
+      "type": "time"
+    },
+    "duration": {
+      "type": "integer"
+    },
+    "property_type": {
+      "type": "enumeration",
+      "enum": [
+        "house",
+        "apartment"
+      ]
+    },
+    "supplies_needed": {
+      "type": "boolean",
+      "default": false
+    },
+    "service_package": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::service-package.service-package"
+    },
+    "payment_status": {
+      "type": "enumeration",
+      "enum": [
+        "Pending payment",
+        "Payment failed",
+        "Payment confirmed",
+        "Rescheduled",
+        "Sent to vendor",
+        "Cancelled",
+        "QC/Feedback",
+        "Completed",
+        "Refunded"
+      ],
+      "default": "Pending payment"
+    },
+    "request_status": {
+      "type": "enumeration",
+      "enum": [
+        "pending",
+        "cancelled",
+        "completed",
+        "scheduled"
+      ],
+      "default": "pending"
+    },
+    "customer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::customer.customer",
+      "inversedBy": "bookings"
+    },
+    "price": {
+      "type": "decimal"
+    },
+    "payment_id": {
+      "type": "string"
+    },
+    "no_of_rooms": {
+      "type": "integer"
+    },
+    "response_id": {
+      "type": "string"
+    },
+    "language_code": {
+      "type": "string"
+    },
+    "countryCode": {
+      "type": "string"
+    },
+    "smsConfirmationSent": {
+      "type": "boolean",
+      "default": false
+    },
+    "currencyCode": {
+      "type": "enumeration",
+      "enum": [
+        "AED",
+        "SAR"
+      ],
+      "default": "AED"
+    },
+    "orderId": {
+      "type": "string",
+      "unique": true
+    },
+    "originalPrice": {
+      "type": "decimal"
+    },
+    "couponCode": {
+      "type": "string"
+    },
+    "discountedPrice": {
+      "type": "decimal"
+    }
+  }
+}
