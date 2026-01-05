@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   LineChart,
@@ -9,7 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceDot,
+  Legend,
 } from "recharts";
 import { SalesChartData } from "@/lib/types";
 
@@ -20,6 +21,28 @@ function getTodayFormatted(): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// Custom tooltip component
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div className="bg-[#0D363C] border-none rounded-lg p-3 shadow-lg">
+      <p className="text-white text-xs mb-2">{label}</p>
+      {payload.map((entry: any, index: number) => (
+        <div key={index} className="flex items-center gap-2">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-white text-sm font-medium">
+            {formatCurrency(entry.value || 0, "AED")}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 interface SalesChartProps {
@@ -35,12 +58,56 @@ export function SalesChart({
   title = "Total Sales",
   className,
 }: SalesChartProps) {
-  // Find the max value to highlight
-  const currentMax = Math.max(...data.map((d) => d.current));
-  const maxDataPoint = data.find((d) => d.current === currentMax);
+  // Merge main data with projections if available
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) {
+      // If no data, show empty chart with zero values
+      return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return {
+          date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          current: 0,
+          previous: 0,
+        };
+      });
+    }
+
+    // If projections exist, merge them with actual data
+    if (projections && projections.length > 0) {
+      return data.map((d, index) => ({
+        ...d,
+        projected: projections[index]?.projected || null,
+      }));
+    }
+
+    return data;
+  }, [data, projections]);
 
   // Calculate total
-  const total = data.reduce((sum, d) => sum + d.current, 0);
+  const total = useMemo(() => {
+    return chartData.reduce((sum, d) => sum + (d.current || 0), 0);
+  }, [chartData]);
+
+  // Format Y-axis tick to show AED with K suffix
+  const formatYAxis = (value: number) => {
+    if (value === 0) return "0";
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}k`;
+    }
+    return value.toString();
+  };
+
+  // Calculate Y-axis domain
+  const yAxisDomain = useMemo(() => {
+    const allValues = chartData.flatMap(d => [
+      d.current || 0,
+      d.previous || 0,
+      (d as any).projected || 0,
+    ]);
+    const maxVal = Math.max(...allValues, 0);
+    return [0, Math.ceil(maxVal * 1.1) || 1000];
+  }, [chartData]);
 
   return (
     <div
@@ -56,27 +123,30 @@ export function SalesChart({
             {formatCurrency(total, "AED")}
           </p>
         </div>
-         <div className="flex items-center gap-4 text-xs">
-           <div className="flex items-center gap-1.5">
-             <span className="size-2 rounded-full bg-brand-primary" />
-             <span className="text-text-muted">{getTodayFormatted()}</span>
-           </div>
-           <div className="flex items-center gap-1.5">
-             <span className="size-2 rounded-full bg-neutral-300" />
-             <span className="text-text-muted">Last Month</span>
-           </div>
-           {projections && projections.length > 0 && (
-             <div className="flex items-center gap-1.5">
-               <span className="size-2 rounded-full bg-brand-accent border border-dashed" />
-               <span className="text-text-muted">Projected</span>
-             </div>
-           )}
-         </div>
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-brand-primary rounded" />
+            <span className="text-text-muted">Current</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-neutral-300 rounded" style={{ borderStyle: 'dashed' }} />
+            <span className="text-text-muted">Previous</span>
+          </div>
+          {projections && projections.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 bg-amber-500 rounded" />
+              <span className="text-text-muted">Projected</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+          >
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="#ececf0"
@@ -86,64 +156,56 @@ export function SalesChart({
               dataKey="date"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#858d9d" }}
+              tick={{ fontSize: 11, fill: "#858d9d" }}
               dy={10}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#858d9d" }}
-              tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-              width={50}
+              tick={{ fontSize: 11, fill: "#858d9d" }}
+              tickFormatter={formatYAxis}
+              width={45}
+              domain={yAxisDomain}
             />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#0D363C",
-                border: "none",
-                borderRadius: "8px",
-                padding: "8px 12px",
-              }}
-              labelStyle={{ color: "#fff", fontSize: "12px", marginBottom: "4px" }}
-              itemStyle={{ color: "#fff", fontSize: "14px", fontWeight: "500" }}
-              formatter={(value) => [formatCurrency(Number(value) || 0, "AED"), ""]}
-            />
+            <Tooltip content={<CustomTooltip />} />
+
+            {/* Previous period line (dashed) */}
             <Line
               type="monotone"
               dataKey="previous"
-              stroke="#d9d9d9"
+              name="Previous"
+              stroke="#d1d5db"
               strokeWidth={2}
               strokeDasharray="5 5"
               dot={false}
-              activeDot={{ r: 4, fill: "#d9d9d9" }}
+              activeDot={{ r: 4, fill: "#d1d5db", strokeWidth: 0 }}
+              connectNulls
             />
+
+            {/* Current period line (solid) */}
             <Line
               type="monotone"
               dataKey="current"
+              name="Current"
               stroke="#0D363C"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 6, fill: "#0D363C" }}
+              strokeWidth={2.5}
+              dot={{ r: 3, fill: "#0D363C", strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: "#0D363C", strokeWidth: 2, stroke: "#fff" }}
+              connectNulls
             />
+
+            {/* Projected line if available */}
             {projections && projections.length > 0 && (
               <Line
                 type="monotone"
                 dataKey="projected"
-                data={projections}
-                stroke="#D4AF37"
+                name="Projected"
+                stroke="#f59e0b"
                 strokeWidth={2}
-                strokeDasharray="5 5"
+                strokeDasharray="3 3"
                 dot={false}
-                activeDot={{ r: 4, fill: "#D4AF37" }}
-              />
-            )}
-            {maxDataPoint && (
-              <ReferenceDot
-                x={maxDataPoint.date}
-                y={maxDataPoint.current}
-                r={6}
-                fill="#0D363C"
-                stroke="#fff"
-                strokeWidth={2}
+                activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }}
+                connectNulls
               />
             )}
           </LineChart>
