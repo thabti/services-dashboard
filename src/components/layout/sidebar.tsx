@@ -17,14 +17,62 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Overview", href: "/", icon: LayoutDashboard },
 ];
 
 const serviceItems: NavItem[] = [
   { label: "Nannies", href: "/services/nannies", icon: Baby },
-  { label: "Car Seats", href: "/services/car-seats", icon: Car },
+  { label: "Gear Refresh", href: "/services/gear-refresh", icon: Car },
   { label: "Home Care", href: "/services/home-care", icon: Home },
 ];
+
+export function TopNavigation() {
+  const pathname = usePathname();
+
+  const isActive = (href: string) => pathname === href;
+
+  return (
+    <nav className="bg-white border-b border-neutral-200 px-6 py-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-center">
+          {/* Navigation Links */}
+          <div className="flex items-center gap-8 overflow-x-auto">
+            {navItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
+                  isActive(item.href)
+                    ? "bg-brand-primary text-white hover:bg-brand-primary/90"
+                    : "text-text-secondary hover:text-text-primary hover:bg-neutral-50"
+                )}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </Link>
+            ))}
+            {serviceItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
+                  isActive(item.href)
+                    ? "bg-brand-primary text-white hover:bg-brand-primary/90"
+                    : "text-text-secondary hover:text-text-primary hover:bg-neutral-50"
+                )}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();

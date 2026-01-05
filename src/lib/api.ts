@@ -184,7 +184,7 @@ export function calculateServiceGrowthProjection(
 ): Record<ServiceType, { month: string; projected: number; actual?: number }[]> {
   const result: Record<ServiceType, { month: string; projected: number; actual?: number }[]> = {
     nannies: [],
-    "car-seat": [],
+    "gear-refresh": [],
     "home-care": []
   };
 
@@ -336,11 +336,10 @@ function detectServiceType(order: Order): ServiceType {
     return "home-care";
   }
 
-  // Check for car seat specific fields
-  if (data.carType || data.installationType || data.car_model ||
-      data.seatType || data.serviceType === "car-seat") {
-    console.log("🚗 Detected as car-seat service");
-    return "car-seat";
+  // Check for gear refresh specific fields
+  if (data.carType || data.installationType || data.serviceType === "gear-refresh") {
+    console.log("🔧 Detected as gear-refresh service");
+    return "gear-refresh";
   }
 
   // For the nannies page, default to nannies service
@@ -390,7 +389,7 @@ export async function fetchAllOrders(): Promise<{
 
   const byService: Record<ServiceType, Order[]> = {
     nannies: [],
-    "car-seat": [],
+    "gear-refresh": [],
     "home-care": [],
   };
 
@@ -435,11 +434,11 @@ export async function fetchAllOrders(): Promise<{
     console.error("Failed to fetch home care orders:", homeCareResponse.reason);
   }
 
-  console.log(`📊 Service breakdown:`, {
-    nannies: byService.nannies.length,
-    "car-seat": byService["car-seat"].length,
-    "home-care": byService["home-care"].length,
-  });
+      console.log(`📊 Service breakdown:`, {
+        nannies: byService.nannies.length,
+        "gear-refresh": byService["gear-refresh"].length,
+        "home-care": byService["home-care"].length,
+      });
 
   const orders = Object.values(byService).flat();
 
@@ -474,6 +473,69 @@ function getCustomerName(order: Order): string {
   return "Unknown Customer";
 }
 
+// Service margin rates (percentage of revenue that goes to service provider)
+// For a margin business, these represent the cost to the business for each service type
+// Profit = Revenue - (Service Provider Cost + Platform Fees + Fixed Costs)
+//
+// Example for Nannies (35% profit margin):
+// - Customer pays AED 100
+// - Nanny receives AED 65 (65% margin rate)
+// - Platform fee: AED 5 (5% of revenue)
+// - Fixed costs: AED 5 per order
+// - Total cost: AED 75
+// - Profit: AED 25 (25% of revenue)
+const SERVICE_MARGIN_RATES: Record<ServiceType, number> = {
+  nannies: 0.65,    // 65% goes to nanny, 35% profit margin
+  "gear-refresh": 0.70, // 70% goes to technician, 30% profit margin
+  "home-care": 0.60, // 60% goes to cleaner, 40% profit margin
+};
+
+// Additional fixed costs per order (platform fees, payment processing, etc.)
+const FIXED_COSTS_PER_ORDER = 5; // AED per order
+const PLATFORM_FEE_PERCENTAGE = 0.05; // 5% platform fee
+
+/**
+ * Profit Calculation for Margin Business
+ *
+ * Formula: Profit = Revenue - Cost
+ * Cost = Service Provider Payment + Platform Fees + Fixed Costs
+ *
+ * @param revenue - Total amount paid by customer
+ * @param serviceType - Type of service (determines margin rate)
+ * @returns Profit amount in AED
+ *
+ * Example: Customer pays AED 100 for nanny service
+ * - Service provider (nanny): AED 65 (65% margin)
+ * - Platform fee: AED 5 (5% of AED 100)
+ * - Fixed costs: AED 5
+ * - Total cost: AED 75
+ * - Profit: AED 25 (25% profit margin)
+ */
+
+// Calculate cost for an order (what the business pays out)
+export function calculateOrderCost(order: Order, serviceType: ServiceType): number {
+  const revenue = getOrderTotal(order);
+  const marginRate = SERVICE_MARGIN_RATES[serviceType] || 0.65;
+
+  // Service provider cost (margin)
+  const serviceProviderCost = revenue * marginRate;
+
+  // Platform fee
+  const platformFee = revenue * PLATFORM_FEE_PERCENTAGE;
+
+  // Fixed costs
+  const fixedCosts = FIXED_COSTS_PER_ORDER;
+
+  return serviceProviderCost + platformFee + fixedCosts;
+}
+
+// Calculate profit for an order
+export function calculateOrderProfit(order: Order, serviceType: ServiceType): number {
+  const revenue = getOrderTotal(order);
+  const cost = calculateOrderCost(order, serviceType);
+  return revenue - cost;
+}
+
 // Calculate dashboard stats from orders
 export function calculateDashboardStats(
   orders: Order[],
@@ -487,17 +549,35 @@ export function calculateDashboardStats(
   const totalRevenue = currentConfirmed.reduce((sum, order) => sum + getOrderTotal(order), 0);
   const previousRevenue = previousConfirmed.reduce((sum, order) => sum + getOrderTotal(order), 0);
 
+  // Calculate total profit based on service margins
+  const totalProfit = currentConfirmed.reduce((sum, order) => {
+    // For now, assume all orders are nannies since we don't have service type in the order
+    // This should be improved when we have proper service type detection
+    return sum + calculateOrderProfit(order, "nannies");
+  }, 0);
+
+  // Calculate total cost
+  const totalCost = currentConfirmed.reduce((sum, order) => {
+    return sum + calculateOrderCost(order, "nannies");
+  }, 0);
+
   const completedOrders = orders.filter(o => getRequestStatus(o) === "completed").length;
   const pendingOrders = orders.filter(o => getRequestStatus(o) === "pending").length;
   const cancelledOrders = orders.filter(o => getRequestStatus(o) === "cancelled").length;
 
   return {
     totalRevenue,
+    totalProfit,
+    totalCost,
     totalOrders: orders.length,
     completedOrders,
     pendingOrders,
     cancelledOrders,
     revenueChange: getPercentageChange(totalRevenue, previousRevenue),
+    profitChange: previousConfirmed.length > 0
+      ? getPercentageChange(totalProfit, previousConfirmed.reduce((sum, order) =>
+          sum + calculateOrderProfit(order, "nannies"), 0))
+      : 0, // No previous data available
     ordersChange: getPercentageChange(orders.length, previousOrders.length),
   };
 }

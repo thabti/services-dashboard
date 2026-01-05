@@ -39,7 +39,7 @@ export function useHomeCareData() {
   // Create a filtered byService object with only home-care
   const filteredByService: Record<ServiceType, Order[]> = {
     nannies: [],
-    "car-seat": [],
+    "gear-refresh": [],
     "home-care": homeCareOrders,
   };
 
@@ -76,7 +76,7 @@ export function useHomeCareData() {
 
   const serviceGrowthProjection = data?.byService
     ? calculateServiceGrowthProjection(data.byService, 6)
-    : { nannies: [], "car-seat": [], "home-care": [] };
+    : { nannies: [], "gear-refresh": [], "home-care": [] };
 
   return {
     orders: homeCareOrders,

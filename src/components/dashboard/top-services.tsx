@@ -11,13 +11,13 @@ interface TopServicesProps {
 
 const serviceIcons: Record<string, React.ReactNode> = {
   nannies: <Baby className="size-6 text-brand-primary" />,
-  "car-seat": <Car className="size-6 text-success-500" />,
+  "gear-refresh": <Car className="size-6 text-success-500" />,
   "home-care": <Home className="size-6 text-brand-accent" />,
 };
 
 const serviceColors: Record<string, string> = {
   nannies: "bg-brand-primary/10",
-  "car-seat": "bg-success-50",
+  "gear-refresh": "bg-success-50",
   "home-care": "bg-brand-accent/10",
 };
 

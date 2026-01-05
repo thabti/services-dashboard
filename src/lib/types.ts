@@ -126,7 +126,7 @@ export interface HomeCareOrder extends BaseOrder {
 }
 
 // Service type
-export type ServiceType = "nannies" | "car-seat" | "home-care";
+export type ServiceType = "nannies" | "gear-refresh" | "home-care";
 
 // Generic order union type
 export type Order = NannyOrder | CarSeatOrder | HomeCareOrder;
@@ -162,11 +162,14 @@ export interface ServiceConfig {
 // Dashboard Stats
 export interface DashboardStats {
   totalRevenue: number;
+  totalProfit: number;
+  totalCost: number;
   totalOrders: number;
   completedOrders: number;
   pendingOrders: number;
   cancelledOrders: number;
   revenueChange: number;
+  profitChange: number;
   ordersChange: number;
 }
 

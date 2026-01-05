@@ -16,14 +16,14 @@ export const serviceConfigs: Record<ServiceType, ServiceConfig> = {
     color: "#0D363C",
     icon: "baby",
   },
-  "car-seat": {
-    id: "car-seat",
-    name: "Car Seat Services",
+  "gear-refresh": {
+    id: "gear-refresh",
+    name: "Gear Refresh Services",
     apiUrl: "", // Use Next.js proxy
     endpoint: "/api/strapi/orders",
-    authToken: process.env.NANNIES_API_TOKEN || "", // Use same token
-    color: "#4c6c5a",
-    icon: "car",
+    authToken: process.env.GEAR_REFRESH_API_TOKEN || "",
+    color: "#10B981", // Green color for gear refresh
+    icon: "settings",
   },
   "home-care": {
     id: "home-care",

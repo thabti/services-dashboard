@@ -33,7 +33,7 @@ const categoryLabels: Record<string, { label: string; bg: string; text: string }
 
 const serviceIcons: Record<string, React.ReactNode> = {
   nannies: <Baby className="size-4" />,
-  "car-seat": <Car className="size-4" />,
+  "gear-refresh": <Car className="size-4" />,
   "home-care": <Home className="size-4" />,
 };
 

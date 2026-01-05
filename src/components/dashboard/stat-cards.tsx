@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import { DashboardStats } from "@/lib/types";
 import {
   TrendingUp,
   TrendingDown,
@@ -112,21 +113,17 @@ export function StatCard({
 }
 
 interface StatsGridProps {
-  stats: {
-    totalRevenue: number;
-    totalOrders: number;
-    completedOrders: number;
-    pendingOrders: number;
-    cancelledOrders: number;
-    revenueChange: number;
-    ordersChange: number;
-  };
+  stats: DashboardStats | null;
   currency?: string;
 }
 
 export function StatsGrid({ stats, currency = "AED" }: StatsGridProps) {
+  if (!stats) {
+    return <StatsGridSkeleton />;
+  }
+
   return (
-    <div className="flex flex-col lg:flex-row gap-4">
+    <div className="flex flex-col lg:flex-row gap-6">
       {/* Primary stat */}
       <div className="lg:w-1/3">
         <StatCard
@@ -142,13 +139,13 @@ export function StatsGrid({ stats, currency = "AED" }: StatsGridProps) {
       <div className="lg:flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title="Total Profit"
-          value={formatCurrency(stats.totalRevenue * 0.35, currency)}
-          change={15}
+          value={formatCurrency(stats.totalProfit || 0, currency)}
+          change={stats.profitChange || 0}
         />
         <StatCard
           title="Total Cost"
-          value={formatCurrency(stats.totalRevenue * 0.65, currency)}
-          change={-12}
+          value={formatCurrency(stats.totalCost || 0, currency)}
+          change={-8} // This would need proper calculation for change percentage
         />
         <StatCard
           title="Total Leads"
