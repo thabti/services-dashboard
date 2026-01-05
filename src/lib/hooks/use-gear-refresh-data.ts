@@ -6,7 +6,7 @@ import {
   calculateDashboardStats,
   generateSalesChartData,
   getRecentTransactions,
-  getTopServices,
+  getTopProducts,
   generateEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
@@ -65,9 +65,9 @@ export function useGearRefreshData() {
       ? getRecentTransactions(filteredByService, 5)
       : [];
 
-  // Get top services (will show just gear-refresh)
+  // Get top products for gear-refresh (Car Seat Installation by price)
   const topServices =
-    gearRefreshOrders.length > 0 ? getTopServices(filteredByService, 3) : [];
+    gearRefreshOrders.length > 0 ? getTopProducts(filteredByService, 3) : [];
 
   // Calculate projections
   const revenueProjection = gearRefreshOrders.length > 0

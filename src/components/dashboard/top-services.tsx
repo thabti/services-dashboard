@@ -23,12 +23,13 @@ const serviceColors: Record<string, string> = {
 
 export function TopServices({ services, className }: TopServicesProps) {
   return (
-    <div className={cn("bg-white border border-neutral-200 rounded-xl", className)}>
+    <div
+      className={cn("bg-white border border-neutral-200 rounded-xl", className)}
+    >
       <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
         <h3 className="font-semibold text-text-primary">Top Selling Product</h3>
         <button className="text-sm text-brand-primary hover:underline flex items-center gap-1">
           See All Product
-          <ArrowUpRight className="size-3" />
         </button>
       </div>
 
@@ -67,7 +68,10 @@ export function TopServices({ services, className }: TopServicesProps) {
             {/* Price & Revenue */}
             <div className="text-right">
               <p className="text-sm font-semibold text-text-primary">
-                {formatCurrency(service.revenue / (service.orders || 1), service.currency)}
+                {formatCurrency(
+                  service.revenue / (service.orders || 1),
+                  service.currency
+                )}
               </p>
               <p className="text-xs text-text-muted mt-0.5">
                 Total Sales: {formatCurrency(service.revenue, service.currency)}

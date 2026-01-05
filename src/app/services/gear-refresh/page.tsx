@@ -31,7 +31,6 @@ export default function GearRefreshServicePage() {
     transactions,
     topServices,
     revenueProjection,
-    serviceGrowthProjection,
     isLoading
   } = useGearRefreshData();
 

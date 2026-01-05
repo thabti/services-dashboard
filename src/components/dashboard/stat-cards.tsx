@@ -48,9 +48,6 @@ export function StatCard({
               <p className="text-sm font-medium text-white/80">{title}</p>
               <p className="text-4xl font-bold mt-1">{value}</p>
             </div>
-            <button className="p-1 hover:bg-white/10 rounded transition-colors">
-              <ArrowUpRight className="size-5" />
-            </button>
           </div>
           {change !== undefined && (
             <div className="flex items-center gap-1.5 mt-3">
@@ -85,9 +82,6 @@ export function StatCard({
           <p className="text-sm text-text-muted">{title}</p>
           <p className="text-2xl font-bold text-text-primary mt-1">{value}</p>
         </div>
-        <button className="p-1 hover:bg-neutral-50 rounded transition-colors">
-          <ArrowUpRight className="size-4 text-text-muted" />
-        </button>
       </div>
       {change !== undefined && (
         <div className="flex items-center gap-1.5 mt-3">

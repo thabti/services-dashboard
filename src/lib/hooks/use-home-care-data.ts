@@ -6,7 +6,7 @@ import {
   calculateDashboardStats,
   generateSalesChartData,
   getRecentTransactions,
-  getTopServices,
+  getTopProducts,
   generateEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
@@ -65,9 +65,9 @@ export function useHomeCareData() {
       ? getRecentTransactions(filteredByService, 5)
       : [];
 
-  // Get top services (will show just home-care)
+  // Get top products for home-care (Apartment/House by rooms)
   const topServices =
-    homeCareOrders.length > 0 ? getTopServices(filteredByService, 3) : [];
+    homeCareOrders.length > 0 ? getTopProducts(filteredByService, 3) : [];
 
   // Calculate projections
   const revenueProjection = homeCareOrders.length > 0

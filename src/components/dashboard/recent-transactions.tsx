@@ -21,15 +21,15 @@ const statusStyles: Record<PaymentStatus, { bg: string; text: string }> = {
   Refunded: { bg: "bg-red-50", text: "text-red-600" },
 };
 
-const categoryLabels: Record<string, { label: string; bg: string; text: string }> = {
-  "Payment confirmed": { label: "Income", bg: "bg-success-50", text: "text-success-600" },
-  Completed: { label: "Income", bg: "bg-success-50", text: "text-success-600" },
-  Cancelled: { label: "Outcome", bg: "bg-red-50", text: "text-brand-error" },
-  Refunded: { label: "Outcome", bg: "bg-red-50", text: "text-brand-error" },
-  "Pending payment": { label: "Subscription", bg: "bg-purple-50", text: "text-purple-600" },
-  "Sent to vendor": { label: "Income", bg: "bg-success-50", text: "text-success-600" },
-  "QC/Feedback": { label: "Income", bg: "bg-success-50", text: "text-success-600" },
+// Shorter display labels for status badges
+const statusLabels: Partial<Record<PaymentStatus, string>> = {
+  "Payment confirmed": "Paid",
+  "Pending payment": "Pending",
+  "Payment failed": "Failed",
+  "Sent to vendor": "Processing",
+  "QC/Feedback": "QC",
 };
+
 
 const serviceIcons: Record<string, React.ReactNode> = {
   nannies: <Baby className="size-4" />,
@@ -42,12 +42,13 @@ export function RecentTransactions({
   className,
 }: RecentTransactionsProps) {
   return (
-    <div className={cn("bg-white border border-neutral-200 rounded-xl", className)}>
+    <div
+      className={cn("bg-white border border-neutral-200 rounded-xl", className)}
+    >
       <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
         <h3 className="font-semibold text-text-primary">Recent Transaction</h3>
         <button className="text-sm text-brand-primary hover:underline flex items-center gap-1">
           See All Transaction
-          <ArrowUpRight className="size-3" />
         </button>
       </div>
 
@@ -55,19 +56,17 @@ export function RecentTransactions({
         {/* Table Header */}
         <div className="grid grid-cols-4 gap-4 px-6 py-3 text-xs font-medium text-text-muted">
           <span>Name</span>
-          <span>Category</span>
+          <span>Status</span>
           <span>Amount</span>
-          <span className="text-right">Status</span>
+          <span className="text-right">Service</span>
         </div>
 
         {/* Table Body */}
         {transactions.map((transaction) => {
-          const category = categoryLabels[transaction.status] || {
-            label: "Other",
+          const statusStyle = statusStyles[transaction.status] || {
             bg: "bg-neutral-100",
             text: "text-neutral-600",
           };
-          const isIncome = category.label === "Income";
 
           return (
             <div
@@ -93,29 +92,24 @@ export function RecentTransactions({
                 </div>
               </div>
 
-              {/* Category */}
+              {/* Status */}
               <div className="flex items-center">
                 <span
                   className={cn(
                     "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
-                    category.bg,
-                    category.text
+                    statusStyle.bg,
+                    statusStyle.text
                   )}
                 >
                   <span className="size-1.5 rounded-full bg-current" />
-                  {category.label}
+                  {statusLabels[transaction.status] || transaction.status}
                 </span>
               </div>
 
               {/* Amount */}
               <div className="flex items-center">
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    isIncome ? "text-success-600" : "text-brand-error"
-                  )}
-                >
-                  {isIncome ? "+" : "-"} {formatCurrency(transaction.amount, transaction.currency)}
+                <span className="text-sm font-semibold text-text-primary">
+                  {formatCurrency(transaction.amount, transaction.currency)}
                 </span>
               </div>
 

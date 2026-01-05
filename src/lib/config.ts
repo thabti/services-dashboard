@@ -20,7 +20,7 @@ export const serviceConfigs: Record<ServiceType, ServiceConfig> = {
     id: "gear-refresh",
     name: "Gear Refresh Services",
     apiUrl: "", // Use Next.js proxy
-    endpoint: "/api/strapi/orders",
+    endpoint: "/api/strapi/gear-refresh",
     authToken: process.env.GEAR_REFRESH_API_TOKEN || "",
     color: "#10B981", // Green color for gear refresh
     icon: "settings",

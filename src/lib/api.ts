@@ -374,6 +374,33 @@ export async function fetchHomeCareOrders(
   return fetchFromStrapi<Order>("home-care", params);
 }
 
+// Fetch gear refresh orders from dedicated endpoint
+export async function fetchGearRefreshOrders(
+  options?: {
+    page?: number;
+    pageSize?: number;
+    sort?: string;
+    filters?: Record<string, string>;
+  }
+): Promise<StrapiResponse<Order>> {
+  const params: Record<string, string> = {
+    "pagination[page]": String(options?.page || 1),
+    "pagination[pageSize]": String(options?.pageSize || 1000),
+    sort: options?.sort || "createdAt:desc",
+  };
+
+  if (options?.filters) {
+    Object.entries(options.filters).forEach(([key, value]) => {
+      params[`filters[${key}]`] = value;
+    });
+  }
+
+  // Add populate for relations
+  params["populate"] = "*";
+
+  return fetchFromStrapi<Order>("gear-refresh", params);
+}
+
 // Fetch all orders from all services
 export async function fetchAllOrders(): Promise<{
   orders: Order[];
@@ -381,10 +408,11 @@ export async function fetchAllOrders(): Promise<{
 }> {
   console.log("🚀 fetchAllOrders called");
 
-  // Fetch from both nannies and home care endpoints in parallel
-  const [nanniesResponse, homeCareResponse] = await Promise.allSettled([
+  // Fetch from all service endpoints in parallel
+  const [nanniesResponse, homeCareResponse, gearRefreshResponse] = await Promise.allSettled([
     fetchOrders("nannies"), // Fetch nannies orders
     fetchHomeCareOrders(), // Fetch home care orders from dedicated endpoint
+    fetchGearRefreshOrders(), // Fetch gear refresh orders from dedicated endpoint
   ]);
 
   const byService: Record<ServiceType, Order[]> = {
@@ -434,7 +462,27 @@ export async function fetchAllOrders(): Promise<{
     console.error("Failed to fetch home care orders:", homeCareResponse.reason);
   }
 
-      console.log(`📊 Service breakdown:`, {
+  // Process gear refresh orders response
+  if (gearRefreshResponse.status === "fulfilled") {
+    const ordersData = gearRefreshResponse.value.data;
+    console.log(`📋 Processing ${ordersData.length} gear refresh orders`);
+    ordersData.forEach((strapiOrder: any, index: number) => {
+      if (index < 3) { // Log first 3 orders for debugging
+        console.log(`Gear Refresh Order ${index + 1} raw data:`, strapiOrder);
+      }
+      const order = transformStrapiOrder(strapiOrder);
+      if (index < 3) {
+        console.log(`Gear Refresh Order ${index + 1} transformed:`, order);
+      }
+
+      // All orders from gear refresh endpoint go to gear-refresh
+      byService["gear-refresh"].push(order);
+    });
+  } else {
+    console.error("Failed to fetch gear refresh orders:", gearRefreshResponse.reason);
+  }
+
+  console.log(`📊 Service breakdown:`, {
         nannies: byService.nannies.length,
         "gear-refresh": byService["gear-refresh"].length,
         "home-care": byService["home-care"].length,
@@ -732,6 +780,88 @@ export function getTopServices(
     .slice(0, limit);
 }
 
+// Infer product name from order based on service type
+function inferProductName(order: Order, serviceType: ServiceType): string {
+  const data = order as any;
+
+  switch (serviceType) {
+    case "nannies": {
+      // Use type field: day, week, month
+      const type = data.type || "day";
+      const typeNames: Record<string, string> = {
+        day: "Daily Nanny",
+        week: "Weekly Nanny",
+        month: "Monthly Nanny",
+      };
+      return typeNames[type] || "Nanny Service";
+    }
+    case "gear-refresh": {
+      // Use price to infer product tier
+      const price = data.price || data.total || 0;
+      return `Car Seat Installation (AED ${price})`;
+    }
+    case "home-care": {
+      // Use property_type + no_of_rooms
+      const propertyType = data.property_type || "Property";
+      const rooms = data.no_of_rooms || 0;
+      const propName = propertyType.charAt(0).toUpperCase() + propertyType.slice(1);
+      return `${propName} - ${rooms} Room${rooms !== 1 ? "s" : ""}`;
+    }
+    default:
+      return "Unknown Product";
+  }
+}
+
+// Get top selling products by aggregating orders and inferring product types
+export function getTopProducts(
+  byService: Record<ServiceType, Order[]>,
+  limit: number = 5
+): TopService[] {
+  const productStats = new Map<string, {
+    orders: number;
+    revenue: number;
+    service: ServiceType;
+    currency: string;
+    productName: string;
+  }>();
+
+  const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
+
+  Object.entries(byService).forEach(([serviceType, orders]) => {
+    const confirmedOrders = orders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
+
+    confirmedOrders.forEach(order => {
+      const productName = inferProductName(order, serviceType as ServiceType);
+      const key = `${serviceType}:${productName}`;
+
+      const existing = productStats.get(key) || {
+        orders: 0,
+        revenue: 0,
+        service: serviceType as ServiceType,
+        currency: order.currencyCode || "AED",
+        productName,
+      };
+
+      existing.orders += 1;
+      existing.revenue += getOrderTotal(order);
+      productStats.set(key, existing);
+    });
+  });
+
+  return Array.from(productStats.entries())
+    .map(([key, stats]) => ({
+      id: key,
+      name: stats.productName,
+      service: stats.service,
+      orders: stats.orders,
+      revenue: stats.revenue,
+      currency: stats.currency as any,
+      status: "available" as const,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit);
+}
+
 // Calculate visitors by service (for bar chart)
 export function calculateVisitorsByService(
   byService: Record<ServiceType, Order[]>
@@ -743,10 +873,23 @@ export function calculateVisitorsByService(
   }));
 }
 
+// Format date with ordinal suffix for earnings chart (e.g., "Mon 18th Jan")
+function formatEarningDate(date: Date): string {
+  const day = date.getDate();
+  const suffix = day === 1 || day === 21 || day === 31 ? "st"
+    : day === 2 || day === 22 ? "nd"
+    : day === 3 || day === 23 ? "rd"
+    : "th";
+
+  const weekday = date.toLocaleDateString("en-US", { weekday: "short" });
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+
+  return `${weekday} ${day}${suffix} ${month}`;
+}
+
 // Generate weekly earning data
 export function generateEarningData(orders: Order[]): SalesChartData[] {
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
-  const days = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
   const data: SalesChartData[] = [];
   const today = new Date();
   const dayOfWeek = today.getDay();
@@ -777,7 +920,7 @@ export function generateEarningData(orders: Order[]): SalesChartData[] {
     });
 
     data.push({
-      date: days[i],
+      date: formatEarningDate(date),
       current: dayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
       previous: previousDayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
     });

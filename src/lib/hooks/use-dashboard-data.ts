@@ -7,7 +7,7 @@ import {
   calculateServiceBreakdown,
   generateSalesChartData,
   getRecentTransactions,
-  getTopServices,
+  getTopProducts,
   calculateVisitorsByService,
   generateEarningData,
 } from "@/lib/api";
@@ -84,11 +84,11 @@ export function useRecentTransactions(limit: number = 10) {
   };
 }
 
-// Hook to get top services
+// Hook to get top selling products across all services
 export function useTopServices(limit: number = 5) {
   const { data, isLoading, error } = useDashboardData();
 
-  const topServices = data ? getTopServices(data.byService, limit) : [];
+  const topServices = data ? getTopProducts(data.byService, limit) : [];
 
   return {
     topServices,
@@ -122,3 +122,4 @@ export function useEarningData() {
     error,
   };
 }
+

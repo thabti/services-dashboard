@@ -6,7 +6,7 @@ import {
   calculateDashboardStats,
   generateSalesChartData,
   getRecentTransactions,
-  getTopServices,
+  getTopProducts,
   generateEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
@@ -65,9 +65,9 @@ export function useNanniesData() {
       ? getRecentTransactions(filteredByService, 5)
       : [];
 
-  // Get top services (will show just nannies)
+  // Get top products for nannies (Daily, Weekly, Monthly Nanny)
   const topServices =
-    nanniesOrders.length > 0 ? getTopServices(filteredByService, 3) : [];
+    nanniesOrders.length > 0 ? getTopProducts(filteredByService, 3) : [];
 
   // Calculate projections
   const revenueProjection = nanniesOrders.length > 0
