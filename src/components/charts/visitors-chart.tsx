@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn, formatNumber } from "@/lib/utils";
 import {
   BarChart,
@@ -12,13 +13,24 @@ import {
   Cell,
 } from "recharts";
 
-// Format today's date for display
-function getTodayFormatted(): string {
-  return new Date().toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+// Custom tooltip component
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div className="bg-[#0D363C] border-none rounded-lg p-3 shadow-lg">
+      <p className="text-white text-xs mb-2">{label}</p>
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: payload[0]?.payload?.color || "#0D363C" }}
+        />
+        <span className="text-white text-sm font-medium">
+          {formatNumber(payload[0]?.value || 0)} Orders
+        </span>
+      </div>
+    </div>
+  );
 }
 
 interface VisitorsChartProps {
@@ -32,8 +44,22 @@ export function VisitorsChart({
   title = "Orders by Service",
   className,
 }: VisitorsChartProps) {
+  // Handle empty data
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) {
+      return [
+        { service: "Nannies", orders: 0, color: "#0D363C" },
+        { service: "Car Seat", orders: 0, color: "#2D5A47" },
+        { service: "Home Care", orders: 0, color: "#6B8E23" },
+      ];
+    }
+    return data;
+  }, [data]);
+
   // Calculate total
-  const total = data.reduce((sum, d) => sum + d.orders, 0);
+  const total = useMemo(() => {
+    return chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
+  }, [chartData]);
 
   return (
     <div
@@ -49,21 +75,25 @@ export function VisitorsChart({
             {formatNumber(total)}
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-brand-primary" />
-            <span className="text-text-muted">{getTodayFormatted()}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-neutral-300" />
-            <span className="text-text-muted">Last Month</span>
-          </div>
+        <div className="flex items-center gap-3 text-xs">
+          {chartData.map((item) => (
+            <div key={item.service} className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-text-muted">{item.service}</span>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+          >
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="#ececf0"
@@ -73,33 +103,26 @@ export function VisitorsChart({
               dataKey="service"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#858d9d" }}
+              tick={{ fontSize: 11, fill: "#858d9d" }}
               dy={10}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#858d9d" }}
+              tick={{ fontSize: 11, fill: "#858d9d" }}
               width={40}
             />
-            <Tooltip
-              cursor={{ fill: "rgba(13, 54, 60, 0.05)" }}
-              contentStyle={{
-                backgroundColor: "#0D363C",
-                border: "none",
-                borderRadius: "8px",
-                padding: "8px 12px",
-              }}
-              labelStyle={{ color: "#fff", fontSize: "12px", marginBottom: "4px" }}
-              itemStyle={{ color: "#fff", fontSize: "14px", fontWeight: "500" }}
-              formatter={(value) => [formatNumber(Number(value) || 0), "Orders"]}
-            />
-            <Bar dataKey="orders" radius={[4, 4, 0, 0]} maxBarSize={60}>
-              {data.map((entry, index) => (
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(13, 54, 60, 0.05)" }} />
+            <Bar
+              dataKey="orders"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={60}
+            >
+              {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.color}
-                  fillOpacity={0.8}
+                  fillOpacity={0.85}
                 />
               ))}
             </Bar>
