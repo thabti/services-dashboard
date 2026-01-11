@@ -54,11 +54,10 @@ export default function Dashboard() {
       ) : stats ? (
         <>
           <StatsGrid stats={stats} />
-          <OrderStatsRow
-            completed={stats.completedOrders}
-            pending={stats.pendingOrders}
-            cancelled={stats.cancelledOrders}
-          />
+        <OrderStatsRow
+          completed={stats.completedOrders || 0}
+          pending={stats.pendingOrders || 0}
+        />
         </>
       ) : null}
 

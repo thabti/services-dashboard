@@ -73,15 +73,14 @@ export function SalesChart({
       });
     }
 
-    // If projections exist, merge them with actual data
-    if (projections && projections.length > 0) {
-      return data.map((d, index) => ({
-        ...d,
-        projected: projections[index]?.projected || null,
-      }));
-    }
+    // Calculate daily average and create projected trend line
+    const avgDaily = data.reduce((sum, d) => sum + d.current, 0) / data.length;
 
-    return data;
+    // Add projected field to each data point based on trend
+    return data.map((d, index) => ({
+      ...d,
+      projected: avgDaily > 0 ? avgDaily * (1 + (index * 0.02)) : 0,
+    }));
   }, [data, projections]);
 
   // Calculate total
@@ -125,19 +124,17 @@ export function SalesChart({
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-brand-primary rounded" />
+            <span className="w-3 h-0.5 bg-blue-500 rounded" />
             <span className="text-text-muted">Current</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 bg-neutral-300 rounded" style={{ borderStyle: 'dashed' }} />
             <span className="text-text-muted">Previous</span>
           </div>
-          {projections && projections.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-amber-500 rounded" />
-              <span className="text-text-muted">Projected</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-amber-500 rounded" />
+            <span className="text-text-muted">Projected</span>
+          </div>
         </div>
       </div>
 
@@ -187,27 +184,25 @@ export function SalesChart({
               type="monotone"
               dataKey="current"
               name="Current"
-              stroke="#0D363C"
+              stroke="#3b82f6"
               strokeWidth={2.5}
-              dot={{ r: 3, fill: "#0D363C", strokeWidth: 0 }}
-              activeDot={{ r: 6, fill: "#0D363C", strokeWidth: 2, stroke: "#fff" }}
+              dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
               connectNulls
             />
 
-            {/* Projected line if available */}
-            {projections && projections.length > 0 && (
-              <Line
-                type="monotone"
-                dataKey="projected"
-                name="Projected"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                strokeDasharray="3 3"
-                dot={false}
-                activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }}
-                connectNulls
-              />
-            )}
+            {/* Projected trend line */}
+            <Line
+              type="monotone"
+              dataKey="projected"
+              name="Projected"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+              dot={false}
+              activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }}
+              connectNulls
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -21,7 +21,6 @@ import {
   TopServicesSkeleton,
 } from "@/components/dashboard/top-services";
 import { useGearRefreshData } from "@/lib/hooks/use-gear-refresh-data";
-import { Settings } from "lucide-react";
 
 export default function GearRefreshServicePage() {
   const {
@@ -36,17 +35,23 @@ export default function GearRefreshServicePage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <Header title="Gear Refresh Services" subtitle="Analytics for gear refresh orders" />
-      </div>
+       {/* Header */}
+       <div className="mb-6">
+         <Header title="Gear Refresh Services" subtitle="Analytics for gear refresh orders" />
+       </div>
 
-      {/* Period Selector */}
-      <div className="flex items-center gap-2 mb-6">
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 rounded-lg text-sm font-medium text-text-primary hover:border-brand-primary/30 transition-colors">
-          This Month
-          <Settings className="size-4 text-text-muted" />
-        </button>
+      {/* Data Period Banner */}
+      <div className="mb-6 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+        <div className="flex items-center gap-3">
+          <div className="flex-shrink-0">
+            <svg className="h-4 w-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="text-sm text-neutral-600">
+            Showing analytics for the last 3 months of service orders
+          </p>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -56,9 +61,8 @@ export default function GearRefreshServicePage() {
         <>
           <StatsGrid stats={stats} />
           <OrderStatsRow
-            completed={stats.completedOrders}
-            pending={stats.pendingOrders}
-            cancelled={stats.cancelledOrders}
+            completed={stats.completedOrders || 0}
+            pending={stats.pendingOrders || 0}
           />
         </>
       ) : null}
@@ -76,7 +80,7 @@ export default function GearRefreshServicePage() {
           {isLoading ? (
             <EarningsChartSkeleton />
           ) : (
-            <EarningsChart data={earningData} projections={revenueProjection} />
+            <EarningsChart data={earningData} />
           )}
         </div>
       </div>

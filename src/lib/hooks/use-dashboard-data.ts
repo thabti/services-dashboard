@@ -9,7 +9,7 @@ import {
   getRecentTransactions,
   getTopProducts,
   calculateVisitorsByService,
-  generateEarningData,
+  generateMonthlyEarningData,
 } from "@/lib/api";
 
 // Query keys
@@ -110,11 +110,11 @@ export function useVisitorsByService() {
   };
 }
 
-// Hook to get earning chart data
+// Hook to get earning chart data (3-month comparison by weeks)
 export function useEarningData() {
   const { data, isLoading, error } = useDashboardData();
 
-  const earningData = data ? generateEarningData(data.orders) : [];
+  const earningData = data ? generateMonthlyEarningData(data.orders) : [];
 
   return {
     earningData,

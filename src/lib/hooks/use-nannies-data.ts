@@ -7,7 +7,7 @@ import {
   generateSalesChartData,
   getRecentTransactions,
   getTopProducts,
-  generateEarningData,
+  generateMonthlyEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
 } from "@/lib/api";
@@ -43,9 +43,9 @@ export function useNanniesData() {
     "home-care": [],
   };
 
-  // Calculate stats for nannies only
+  // Calculate stats for nannies only (with nannies-specific profit margins)
   const stats =
-    nanniesOrders.length > 0 ? calculateDashboardStats(nanniesOrders) : null;
+    nanniesOrders.length > 0 ? calculateDashboardStats(nanniesOrders, [], "nannies") : null;
 
   // Generate chart data for nannies only
   const chartData =
@@ -55,9 +55,9 @@ export function useNanniesData() {
     console.log("📈 First chart data point:", chartData[0]);
   }
 
-  // Generate earning data for nannies only
+  // Generate monthly earning data for nannies only (3-month comparison)
   const earningData =
-    nanniesOrders.length > 0 ? generateEarningData(nanniesOrders) : [];
+    nanniesOrders.length > 0 ? generateMonthlyEarningData(nanniesOrders) : [];
 
   // Get recent transactions for nannies only
   const transactions =

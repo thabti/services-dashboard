@@ -132,17 +132,17 @@ export function StatsGrid({ stats, currency = "AED" }: StatsGridProps) {
       {/* Secondary stats */}
       <div className="lg:flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
-          title="Total Profit"
-          value={formatCurrency(stats.totalProfit || 0, currency)}
-          change={stats.profitChange || 0}
+          title="Total Sales"
+          value={formatCurrency(stats.totalRevenue || 0, currency)}
+          change={stats.revenueChange || 0}
         />
         <StatCard
-          title="Total Cost"
-          value={formatCurrency(stats.totalCost || 0, currency)}
-          change={-8} // This would need proper calculation for change percentage
+          title="Average Order Value"
+          value={formatCurrency(stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0, currency)}
+          change={stats.averageOrderValueChange}
         />
         <StatCard
-          title="Total Leads"
+          title="Total Orders"
           value={formatNumber(stats.totalOrders)}
           change={stats.ordersChange}
         />
@@ -191,14 +191,12 @@ export function MiniStatCard({ title, value, icon, color }: MiniStatCardProps) {
 export function OrderStatsRow({
   completed,
   pending,
-  cancelled,
 }: {
   completed: number;
   pending: number;
-  cancelled: number;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
       <MiniStatCard
         title="Completed Orders"
         value={completed}
@@ -210,12 +208,6 @@ export function OrderStatsRow({
         value={pending}
         icon={<Clock className="size-5" />}
         color="warning"
-      />
-      <MiniStatCard
-        title="Cancelled Orders"
-        value={cancelled}
-        icon={<XCircle className="size-5" />}
-        color="error"
       />
     </div>
   );

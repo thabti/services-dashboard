@@ -7,7 +7,7 @@ import {
   generateSalesChartData,
   getRecentTransactions,
   getTopProducts,
-  generateEarningData,
+  generateMonthlyEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
 } from "@/lib/api";
@@ -43,9 +43,9 @@ export function useGearRefreshData() {
     "home-care": [],
   };
 
-  // Calculate stats for gear-refresh only
+  // Calculate stats for gear-refresh only (with gear-refresh-specific profit margins)
   const stats =
-    gearRefreshOrders.length > 0 ? calculateDashboardStats(gearRefreshOrders) : null;
+    gearRefreshOrders.length > 0 ? calculateDashboardStats(gearRefreshOrders, [], "gear-refresh") : null;
 
   // Generate chart data for gear-refresh only
   const chartData =
@@ -55,9 +55,9 @@ export function useGearRefreshData() {
     console.log("📈 First chart data point:", chartData[0]);
   }
 
-  // Generate earning data for gear-refresh only
+  // Generate monthly earning data for gear-refresh only (3-month comparison)
   const earningData =
-    gearRefreshOrders.length > 0 ? generateEarningData(gearRefreshOrders) : [];
+    gearRefreshOrders.length > 0 ? generateMonthlyEarningData(gearRefreshOrders) : [];
 
   // Get recent transactions for gear-refresh only
   const transactions =

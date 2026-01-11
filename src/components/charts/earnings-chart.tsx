@@ -11,7 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { SalesChartData } from "@/lib/types";
+import { MonthlyEarningData } from "@/lib/types";
 
 // Custom tooltip component
 function CustomTooltip({ active, payload, label }: any) {
@@ -36,44 +36,34 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 interface EarningsChartProps {
-  data: SalesChartData[];
-  projections?: { month: string; projected: number; actual?: number }[];
+  data: MonthlyEarningData[];
   title?: string;
   className?: string;
 }
 
 export function EarningsChart({
   data,
-  projections,
   title = "Earning Growth",
   className,
 }: EarningsChartProps) {
-  // Merge main data with projections if available
+  // Process data
   const chartData = useMemo(() => {
     if (!data || data.length === 0) {
-      // If no data, show empty chart with days of the week
-      const days = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-      return days.map((day) => ({
-        date: day,
-        current: 0,
-        previous: 0,
-      }));
-    }
-
-    // If projections exist, merge them with actual data
-    if (projections && projections.length > 0) {
-      return data.map((d, index) => ({
-        ...d,
-        projected: projections[index]?.projected || null,
-      }));
+      // If no data, show empty chart with weeks
+      return [
+        { week: "Week 1", currentMonth: 0, oneMonthAgo: 0, twoMonthsAgo: 0 },
+        { week: "Week 2", currentMonth: 0, oneMonthAgo: 0, twoMonthsAgo: 0 },
+        { week: "Week 3", currentMonth: 0, oneMonthAgo: 0, twoMonthsAgo: 0 },
+        { week: "Week 4", currentMonth: 0, oneMonthAgo: 0, twoMonthsAgo: 0 },
+      ];
     }
 
     return data;
-  }, [data, projections]);
+  }, [data]);
 
-  // Calculate total
+  // Calculate total for current month
   const total = useMemo(() => {
-    return chartData.reduce((sum, d) => sum + (d.current || 0), 0);
+    return chartData.reduce((sum, d) => sum + (d.currentMonth || 0), 0);
   }, [chartData]);
 
   // Format Y-axis tick to show with K suffix
@@ -88,13 +78,20 @@ export function EarningsChart({
   // Calculate Y-axis domain
   const yAxisDomain = useMemo(() => {
     const allValues = chartData.flatMap(d => [
-      d.current || 0,
-      d.previous || 0,
-      (d as any).projected || 0,
+      d.currentMonth || 0,
+      d.oneMonthAgo || 0,
+      d.twoMonthsAgo || 0,
     ]);
     const maxVal = Math.max(...allValues, 0);
     return [0, Math.ceil(maxVal * 1.1) || 1000];
   }, [chartData]);
+
+  // Get month labels
+  const getMonthLabel = (monthsAgo: number): string => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - monthsAgo);
+    return date.toLocaleDateString("en-US", { month: "short" });
+  };
 
   return (
     <div
@@ -112,19 +109,17 @@ export function EarningsChart({
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-brand-primary rounded" />
-            <span className="text-text-muted">This Week</span>
+            <span className="w-3 h-0.5 bg-blue-500 rounded" />
+            <span className="text-text-muted">{getMonthLabel(0)}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-0.5 bg-neutral-300 rounded" style={{ borderStyle: 'dashed' }} />
-            <span className="text-text-muted">Last Week</span>
+            <span className="w-3 h-0.5 bg-gray-400 rounded" style={{ borderStyle: 'dashed' }} />
+            <span className="text-text-muted">{getMonthLabel(1)}</span>
           </div>
-          {projections && projections.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-amber-500 rounded" />
-              <span className="text-text-muted">Projected</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-purple-400 rounded" />
+            <span className="text-text-muted">{getMonthLabel(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -136,16 +131,16 @@ export function EarningsChart({
           >
             <defs>
               <linearGradient id="earningsGradientCurrent" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0D363C" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#0D363C" stopOpacity={0} />
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="earningsGradientPrevious" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#d1d5db" stopOpacity={0.1} />
-                <stop offset="95%" stopColor="#d1d5db" stopOpacity={0} />
+              <linearGradient id="earningsGradientOneMonth" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#9ca3af" stopOpacity={0.1} />
+                <stop offset="95%" stopColor="#9ca3af" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="earningsGradientProjected" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+              <linearGradient id="earningsGradientTwoMonths" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.1} />
+                <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid
@@ -154,7 +149,7 @@ export function EarningsChart({
               vertical={false}
             />
             <XAxis
-              dataKey="date"
+              dataKey="week"
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "#858d9d" }}
@@ -170,47 +165,45 @@ export function EarningsChart({
             />
             <Tooltip content={<CustomTooltip />} />
 
-            {/* Previous period area (dashed line with light fill) */}
+            {/* 2 Months Ago (purple, dotted) */}
             <Area
               type="monotone"
-              dataKey="previous"
-              name="Last Week"
-              stroke="#d1d5db"
+              dataKey="twoMonthsAgo"
+              name={getMonthLabel(2)}
+              stroke="#a78bfa"
+              strokeWidth={2}
+              strokeDasharray="2 2"
+              fillOpacity={1}
+              fill="url(#earningsGradientTwoMonths)"
+              connectNulls
+            />
+
+            {/* 1 Month Ago (gray, dashed) */}
+            <Area
+              type="monotone"
+              dataKey="oneMonthAgo"
+              name={getMonthLabel(1)}
+              stroke="#9ca3af"
               strokeWidth={2}
               strokeDasharray="5 5"
               fillOpacity={1}
-              fill="url(#earningsGradientPrevious)"
+              fill="url(#earningsGradientOneMonth)"
               connectNulls
             />
 
-            {/* Current period area (solid line with gradient fill) */}
+            {/* Current Month (blue, solid) */}
             <Area
               type="monotone"
-              dataKey="current"
-              name="This Week"
-              stroke="#0D363C"
+              dataKey="currentMonth"
+              name={getMonthLabel(0)}
+              stroke="#3b82f6"
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#earningsGradientCurrent)"
-              dot={{ r: 3, fill: "#0D363C", strokeWidth: 0 }}
-              activeDot={{ r: 6, fill: "#0D363C", strokeWidth: 2, stroke: "#fff" }}
+              dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
               connectNulls
             />
-
-            {/* Projected area if available */}
-            {projections && projections.length > 0 && (
-              <Area
-                type="monotone"
-                dataKey="projected"
-                name="Projected"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                strokeDasharray="3 3"
-                fillOpacity={1}
-                fill="url(#earningsGradientProjected)"
-                connectNulls
-              />
-            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -228,6 +221,7 @@ export function EarningsChartSkeleton() {
           <div className="h-8 bg-neutral-100 rounded w-32" />
         </div>
         <div className="flex gap-4">
+          <div className="h-4 bg-neutral-100 rounded w-16" />
           <div className="h-4 bg-neutral-100 rounded w-16" />
           <div className="h-4 bg-neutral-100 rounded w-16" />
         </div>

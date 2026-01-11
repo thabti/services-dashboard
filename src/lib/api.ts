@@ -11,6 +11,7 @@ import {
   SalesChartData,
   ServiceBreakdown,
   PaymentStatus,
+  MonthlyEarningData,
 } from "./types";
 import { getServiceConfig, allServices } from "./config";
 import { getPercentageChange } from "./utils";
@@ -118,25 +119,53 @@ export async function fetchServiceRequests(
   return fetchFromStrapi<Order>(serviceType, params);
 }
 
+// Helper function for consistent 7-day period boundaries
+function getWeeklyPeriods(): {
+  currentStart: Date;
+  currentEnd: Date;
+  previousStart: Date;
+  previousEnd: Date;
+} {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  // Current period: last 7 days including today
+  const currentEnd = new Date(today);
+  const currentStart = new Date(today);
+  currentStart.setDate(today.getDate() - 6);
+  currentStart.setHours(0, 0, 0, 0);
+
+  // Previous period: 7 days before current period
+  const previousEnd = new Date(currentStart);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+  previousEnd.setHours(23, 59, 59, 999);
+
+  const previousStart = new Date(previousEnd);
+  previousStart.setDate(previousEnd.getDate() - 6);
+  previousStart.setHours(0, 0, 0, 0);
+
+  return { currentStart, currentEnd, previousStart, previousEnd };
+}
+
 // Projection calculation functions
 export function calculateRevenueProjection(
   orders: Order[],
-  monthsAhead: number = 6
+  monthsAhead: number = 3
 ): { month: string; projected: number; actual?: number }[] {
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
 
-  // Get last 6 months of actual data
+  // STEP 1: Collect exactly 3 months of historical data
   const now = new Date();
-  const projections = [];
+  const historicalData: { month: string; actual: number; monthIndex: number }[] = [];
 
-  for (let i = monthsAhead - 1; i >= 0; i--) {
+  // Get data for exactly the last 3 complete months
+  for (let i = 2; i >= 0; i--) {
     const targetDate = new Date(now);
     targetDate.setMonth(now.getMonth() - i);
 
     const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
     const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
 
-    // Calculate actual revenue for this month
     const monthOrders = orders.filter(order => {
       const orderDate = new Date(order.createdAt);
       return orderDate >= monthStart && orderDate <= monthEnd &&
@@ -145,33 +174,64 @@ export function calculateRevenueProjection(
 
     const actualRevenue = monthOrders.reduce((sum, order) => sum + getOrderTotal(order), 0);
 
-    projections.push({
+    historicalData.push({
       month: targetDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
       actual: actualRevenue,
-      projected: actualRevenue // For now, use actual; will be enhanced with linear regression
+      monthIndex: i
     });
   }
 
-  // Apply linear regression for future projections
-  const validData = projections.filter(p => p.actual && p.actual > 0);
-  if (validData.length >= 3) {
-    // Simple linear regression
-    const n = validData.length;
-    const sumX = validData.reduce((sum, _, i) => sum + i, 0);
-    const sumY = validData.reduce((sum, p) => sum + p.actual!, 0);
-    const sumXY = validData.reduce((sum, p, i) => sum + i * p.actual!, 0);
-    const sumXX = validData.reduce((sum, _, i) => sum + i * i, 0);
+  // STEP 2: Validate we have sufficient data (at least 1 month with revenue)
+  const validHistoricalData = historicalData.filter(d => d.actual > 0);
+  if (validHistoricalData.length < 1) {
+    // Return empty projections if no data
+    return [];
+  }
 
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+  // STEP 3: Calculate weighted average (more recent months have higher weight)
+  const weights = [1, 2, 3]; // Oldest to newest
+  let weightedSum = 0;
+  let totalWeight = 0;
 
-    // Apply projections for future months
-    projections.forEach((p, index) => {
-      if (!p.actual || p.actual === 0) {
-        p.projected = Math.max(0, slope * index + intercept);
-      } else {
-        p.projected = p.actual;
-      }
+  historicalData.forEach((data, index) => {
+    if (data.actual > 0) {
+      weightedSum += data.actual * weights[index];
+      totalWeight += weights[index];
+    }
+  });
+
+  const averageMonthlyRevenue = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+  // STEP 4: Generate projection array with proper typing
+  const projections: { month: string; projected: number; actual?: number }[] = [];
+
+  // Add historical months with actual data
+  historicalData.forEach(historical => {
+    projections.push({
+      month: historical.month,
+      actual: historical.actual,
+      projected: historical.actual // Historical projected equals actual
+    });
+  });
+
+  // Add future months with conservative projections (3 months ahead)
+  for (let i = 1; i <= monthsAhead; i++) {
+    const futureDate = new Date(now);
+    futureDate.setMonth(now.getMonth() + i);
+
+    // Conservative approach: use weighted average with slight growth
+    // Allow 1% monthly growth
+    const monthlyGrowth = 0.01;
+    const projectedRevenue = averageMonthlyRevenue * (1 + (monthlyGrowth * i));
+
+    // Bounds: 0.85x to 1.15x of average for reasonable variance
+    const maxBound = averageMonthlyRevenue * 1.15;
+    const minBound = averageMonthlyRevenue * 0.85;
+    const finalProjected = Math.min(maxBound, Math.max(minBound, projectedRevenue));
+
+    projections.push({
+      month: futureDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      projected: finalProjected
     });
   }
 
@@ -488,9 +548,16 @@ export async function fetchAllOrders(): Promise<{
         "home-care": byService["home-care"].length,
       });
 
-  const orders = Object.values(byService).flat();
+  // Filter out cancelled orders from all data
+  const filteredByService: Record<ServiceType, Order[]> = {
+    nannies: byService.nannies.filter(order => getRequestStatus(order) !== "cancelled"),
+    "gear-refresh": byService["gear-refresh"].filter(order => getRequestStatus(order) !== "cancelled"),
+    "home-care": byService["home-care"].filter(order => getRequestStatus(order) !== "cancelled"),
+  };
 
-  return { orders, byService };
+  const orders = Object.values(filteredByService).flat();
+
+  return { orders, byService: filteredByService };
 }
 
 // Helper to get total from order (handles different field names)
@@ -585,48 +652,79 @@ export function calculateOrderProfit(order: Order, serviceType: ServiceType): nu
 }
 
 // Calculate dashboard stats from orders
+// Automatically compares current month vs previous month
 export function calculateDashboardStats(
   orders: Order[],
-  previousOrders: Order[] = []
+  _previousOrders: Order[] = [], // Deprecated - now calculated internally
+  serviceType: ServiceType = "nannies"
 ): DashboardStats {
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
+  const now = new Date();
 
-  const currentConfirmed = orders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
-  const previousConfirmed = previousOrders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
+  // Get current month boundaries
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+  // Get previous month boundaries
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  // Filter orders by month, excluding cancelled orders
+  const currentMonthOrders = orders.filter(order => {
+    const orderDate = new Date(order.createdAt);
+    return orderDate >= currentMonthStart && orderDate <= currentMonthEnd && getRequestStatus(order) !== "cancelled";
+  });
+
+  const previousMonthOrders = orders.filter(order => {
+    const orderDate = new Date(order.createdAt);
+    return orderDate >= previousMonthStart && orderDate <= previousMonthEnd && getRequestStatus(order) !== "cancelled";
+  });
+
+  // Filter confirmed orders
+  const currentConfirmed = currentMonthOrders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
+  const previousConfirmed = previousMonthOrders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
+
+  // Calculate revenues
   const totalRevenue = currentConfirmed.reduce((sum, order) => sum + getOrderTotal(order), 0);
   const previousRevenue = previousConfirmed.reduce((sum, order) => sum + getOrderTotal(order), 0);
 
-  // Calculate total profit based on service margins
+  // Calculate total profit based on service-specific margins
   const totalProfit = currentConfirmed.reduce((sum, order) => {
-    // For now, assume all orders are nannies since we don't have service type in the order
-    // This should be improved when we have proper service type detection
-    return sum + calculateOrderProfit(order, "nannies");
+    return sum + calculateOrderProfit(order, serviceType);
   }, 0);
 
-  // Calculate total cost
+  // Calculate total cost based on service-specific margins
   const totalCost = currentConfirmed.reduce((sum, order) => {
-    return sum + calculateOrderCost(order, "nannies");
+    return sum + calculateOrderCost(order, serviceType);
   }, 0);
 
-  const completedOrders = orders.filter(o => getRequestStatus(o) === "completed").length;
-  const pendingOrders = orders.filter(o => getRequestStatus(o) === "pending").length;
-  const cancelledOrders = orders.filter(o => getRequestStatus(o) === "cancelled").length;
+  // Calculate previous profit for comparison
+  const previousProfit = previousConfirmed.reduce((sum, order) => {
+    return sum + calculateOrderProfit(order, serviceType);
+  }, 0);
+
+  const completedOrders = currentMonthOrders.filter(o => getRequestStatus(o) === "completed").length;
+  const pendingOrders = currentMonthOrders.filter(o => getRequestStatus(o) === "pending").length;
+
+  // Calculate average order value change
+  const currentAOV = currentConfirmed.length > 0 ? totalRevenue / currentConfirmed.length : 0;
+  const previousAOV = previousConfirmed.length > 0 ? previousRevenue / previousConfirmed.length : 0;
+  const averageOrderValueChange = getPercentageChange(currentAOV, previousAOV);
 
   return {
     totalRevenue,
     totalProfit,
     totalCost,
-    totalOrders: orders.length,
+    totalOrders: currentMonthOrders.length,
     completedOrders,
     pendingOrders,
-    cancelledOrders,
+    cancelledOrders: 0, // No longer tracking cancelled orders
     revenueChange: getPercentageChange(totalRevenue, previousRevenue),
     profitChange: previousConfirmed.length > 0
-      ? getPercentageChange(totalProfit, previousConfirmed.reduce((sum, order) =>
-          sum + calculateOrderProfit(order, "nannies"), 0))
-      : 0, // No previous data available
-    ordersChange: getPercentageChange(orders.length, previousOrders.length),
+      ? getPercentageChange(totalProfit, previousProfit)
+      : 0,
+    ordersChange: getPercentageChange(currentMonthOrders.length, previousMonthOrders.length),
+    averageOrderValueChange,
   };
 }
 
@@ -651,13 +749,13 @@ export function calculateServiceBreakdown(
   });
 }
 
-// Generate sales chart data (last 7 days)
+// Generate sales chart data (last 7 days vs previous 7 days)
 export function generateSalesChartData(orders: Order[]): SalesChartData[] {
   console.log(`📊 generateSalesChartData called with ${orders.length} orders`);
 
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
   const data: SalesChartData[] = [];
-  const today = new Date();
+  const { currentStart } = getWeeklyPeriods();
 
   // Log sample orders for debugging
   if (orders.length > 0) {
@@ -669,12 +767,13 @@ export function generateSalesChartData(orders: Order[]): SalesChartData[] {
     });
   }
 
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
+  // Generate data for each of the last 7 days
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(currentStart);
+    date.setDate(currentStart.getDate() + i);
     const dateStr = date.toISOString().split("T")[0];
 
-    // Current period
+    // Current period - orders for this day
     const dayOrders = orders.filter(o => {
       const orderDate = new Date(o.createdAt).toISOString().split("T")[0];
       return orderDate === dateStr && confirmedStatuses.includes(getPaymentStatus(o));
@@ -690,10 +789,14 @@ export function generateSalesChartData(orders: Order[]): SalesChartData[] {
       return orderDate === previousDateStr && confirmedStatuses.includes(getPaymentStatus(o));
     });
 
+    // Calculate daily totals
+    const currentTotal = dayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0);
+    const previousTotal = previousDayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0);
+
     data.push({
       date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      current: dayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
-      previous: previousDayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
+      current: currentTotal,
+      previous: previousTotal,
     });
   }
 
@@ -711,19 +814,21 @@ export function getRecentTransactions(
   Object.entries(byService).forEach(([serviceType, orders]) => {
     const service = getServiceConfig(serviceType as ServiceType);
 
-    orders.forEach(order => {
-      transactions.push({
-        id: order.documentId,
-        orderId: order.orderId,
-        customerName: getCustomerName(order),
-        service: serviceType as ServiceType,
-        serviceName: service.name,
-        amount: getOrderTotal(order),
-        currency: order.currencyCode || "AED",
-        status: getPaymentStatus(order) as any,
-        date: order.createdAt,
+    orders
+      .filter(order => getRequestStatus(order) !== "cancelled")
+      .forEach(order => {
+        transactions.push({
+          id: order.documentId,
+          orderId: order.orderId,
+          customerName: getCustomerName(order),
+          service: serviceType as ServiceType,
+          serviceName: service.name,
+          amount: getOrderTotal(order),
+          currency: order.currencyCode || "AED",
+          status: getPaymentStatus(order) as any,
+          date: order.createdAt,
+        });
       });
-    });
   });
 
   // Sort by date descending and limit
@@ -887,29 +992,25 @@ function formatEarningDate(date: Date): string {
   return `${weekday} ${day}${suffix} ${month}`;
 }
 
-// Generate weekly earning data
+// Generate weekly earning data (last 7 days vs previous 7 days - aligned with generateSalesChartData)
 export function generateEarningData(orders: Order[]): SalesChartData[] {
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
   const data: SalesChartData[] = [];
-  const today = new Date();
-  const dayOfWeek = today.getDay();
+  const { currentStart } = getWeeklyPeriods();
 
-  // Start from Monday of current week
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-
+  // Generate data for each of the last 7 days (same period as generateSalesChartData)
   for (let i = 0; i < 7; i++) {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + i);
+    const date = new Date(currentStart);
+    date.setDate(currentStart.getDate() + i);
     const dateStr = date.toISOString().split("T")[0];
 
-    // Current week
+    // Current period - orders for this day
     const dayOrders = orders.filter(o => {
       const orderDate = new Date(o.createdAt).toISOString().split("T")[0];
       return orderDate === dateStr && confirmedStatuses.includes(getPaymentStatus(o));
     });
 
-    // Previous week
+    // Previous period (7 days earlier)
     const previousDate = new Date(date);
     previousDate.setDate(previousDate.getDate() - 7);
     const previousDateStr = previousDate.toISOString().split("T")[0];
@@ -923,6 +1024,75 @@ export function generateEarningData(orders: Order[]): SalesChartData[] {
       date: formatEarningDate(date),
       current: dayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
       previous: previousDayOrders.reduce((sum, o) => sum + getOrderTotal(o), 0),
+    });
+  }
+
+  return data;
+}
+
+// Helper function to get week boundaries within a month
+function getWeekBoundaries(year: number, month: number, weekNum: number): { start: Date; end: Date } {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+
+  // Calculate week start (each week is ~7 days)
+  const weekStart = new Date(year, month, 1 + (weekNum - 1) * 7);
+  const weekEnd = new Date(year, month, Math.min(weekNum * 7, lastDay.getDate()));
+
+  // Clamp to month boundaries
+  weekStart.setHours(0, 0, 0, 0);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  return {
+    start: weekStart > lastDay ? lastDay : weekStart,
+    end: weekEnd > lastDay ? lastDay : weekEnd,
+  };
+}
+
+// Helper to get revenue for a specific week of a month
+function getWeekRevenue(
+  orders: Order[],
+  baseDate: Date,
+  weekNum: number,
+  monthsAgo: number
+): number {
+  const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
+
+  const targetDate = new Date(baseDate);
+  targetDate.setMonth(targetDate.getMonth() - monthsAgo);
+
+  const { start, end } = getWeekBoundaries(
+    targetDate.getFullYear(),
+    targetDate.getMonth(),
+    weekNum
+  );
+
+  const weekOrders = orders.filter(order => {
+    const orderDate = new Date(order.createdAt);
+    return orderDate >= start &&
+           orderDate <= end &&
+           confirmedStatuses.includes(getPaymentStatus(order));
+  });
+
+  return weekOrders.reduce((sum, order) => sum + getOrderTotal(order), 0);
+}
+
+// Generate monthly earning data (3-month comparison by weeks)
+export function generateMonthlyEarningData(orders: Order[]): MonthlyEarningData[] {
+  const now = new Date();
+  const data: MonthlyEarningData[] = [];
+
+  // Generate data for 4 weeks
+  for (let weekNum = 1; weekNum <= 4; weekNum++) {
+    const currentMonthRevenue = getWeekRevenue(orders, now, weekNum, 0);
+    const oneMonthAgoRevenue = getWeekRevenue(orders, now, weekNum, 1);
+    const twoMonthsAgoRevenue = getWeekRevenue(orders, now, weekNum, 2);
+
+    data.push({
+      week: `Week ${weekNum}`,
+      currentMonth: currentMonthRevenue,
+      oneMonthAgo: oneMonthAgoRevenue,
+      twoMonthsAgo: twoMonthsAgoRevenue,
     });
   }
 

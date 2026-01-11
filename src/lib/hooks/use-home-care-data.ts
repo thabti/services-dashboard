@@ -7,7 +7,7 @@ import {
   generateSalesChartData,
   getRecentTransactions,
   getTopProducts,
-  generateEarningData,
+  generateMonthlyEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
 } from "@/lib/api";
@@ -43,9 +43,9 @@ export function useHomeCareData() {
     "home-care": homeCareOrders,
   };
 
-  // Calculate stats for home-care only
+  // Calculate stats for home-care only (with home-care-specific profit margins)
   const stats =
-    homeCareOrders.length > 0 ? calculateDashboardStats(homeCareOrders) : null;
+    homeCareOrders.length > 0 ? calculateDashboardStats(homeCareOrders, [], "home-care") : null;
 
   // Generate chart data for home-care only
   const chartData =
@@ -55,9 +55,9 @@ export function useHomeCareData() {
     console.log("📈 First chart data point:", chartData[0]);
   }
 
-  // Generate earning data for home-care only
+  // Generate monthly earning data for home-care only (3-month comparison)
   const earningData =
-    homeCareOrders.length > 0 ? generateEarningData(homeCareOrders) : [];
+    homeCareOrders.length > 0 ? generateMonthlyEarningData(homeCareOrders) : [];
 
   // Get recent transactions for home-care only
   const transactions =

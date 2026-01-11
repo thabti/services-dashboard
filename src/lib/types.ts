@@ -171,6 +171,7 @@ export interface DashboardStats {
   revenueChange: number;
   profitChange: number;
   ordersChange: number;
+  averageOrderValueChange: number;
 }
 
 // Chart Data
@@ -178,6 +179,14 @@ export interface SalesChartData {
   date: string;
   current: number;
   previous: number;
+}
+
+// Monthly Earning Data (3-month comparison by weeks)
+export interface MonthlyEarningData {
+  week: string;           // "Week 1", "Week 2", "Week 3", "Week 4"
+  currentMonth: number;   // Revenue for current month
+  oneMonthAgo: number;    // Revenue for 1 month ago
+  twoMonthsAgo: number;   // Revenue for 2 months ago
 }
 
 export interface ServiceBreakdown {
