@@ -212,9 +212,62 @@ export interface Transaction {
 export interface TopService {
   id: string;
   name: string;
-  service: ServiceType;
   orders: number;
   revenue: number;
-  currency: CurrencyCode;
-  status: "available" | "low_stock" | "out_of_stock";
+  service: ServiceType;
+  currency: string;
+}
+
+// Geographic Analytics
+export interface CityStats {
+  city: string;
+  country: string;
+  orderCount: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+}
+
+export interface GeographicMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  city: string;
+  country: string;
+  orderCount: number;
+  totalRevenue: number;
+  serviceType: ServiceType;
+}
+
+// Temporal Analytics
+export interface PeakHourData {
+  hour: number;
+  orderCount: number;
+  totalRevenue: number;
+  displayHour: string;
+}
+
+export interface WeeklyPatternData {
+  day: string;
+  dayIndex: number;
+  orderCount: number;
+  totalRevenue: number;
+}
+
+export interface SeasonalData {
+  month: string;
+  monthIndex: number;
+  orderCount: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+}
+
+// Customer Analytics
+export interface HighValueCustomer {
+  id: string;
+  name: string;
+  email?: string;
+  totalSpent: number;
+  orderCount: number;
+  averageOrderValue: number;
+  lastOrderDate: string;
 }

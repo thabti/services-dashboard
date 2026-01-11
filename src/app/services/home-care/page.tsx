@@ -1,6 +1,7 @@
 "use client";
 
 import { Header } from "@/components/layout/header";
+import { formatCurrency } from "@/lib/utils";
 import {
   StatsGrid,
   StatsGridSkeleton,
@@ -20,6 +21,13 @@ import {
   TopServices,
   TopServicesSkeleton,
 } from "@/components/dashboard/top-services";
+
+import {
+  PeakHoursChart,
+  WeeklyPatternsChart,
+  SeasonalTrendsChart,
+} from "@/components/charts/temporal-analytics";
+
 import { useHomeCareData } from "@/lib/hooks/use-home-care-data";
 
 export default function HomeCareServicePage() {
@@ -30,6 +38,13 @@ export default function HomeCareServicePage() {
     transactions,
     topServices,
     revenueProjection,
+    topCitiesByOrders,
+    topCitiesByRevenue,
+    geographicMarkers,
+    peakHours,
+    weeklyPatterns,
+    seasonalTrends,
+    highValueCustomers,
     isLoading
   } = useHomeCareData();
 
@@ -84,6 +99,14 @@ export default function HomeCareServicePage() {
           )}
         </div>
       </div>
+
+      {/* Geographic Insights - Temporarily disabled */}
+      {/* Geographic components will be added after resolving SSR issues */}
+
+      {/* Temporal Insights - Temporarily disabled for build */}
+      {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        Temporal analytics components here
+      </div> */}
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">

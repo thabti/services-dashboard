@@ -10,6 +10,13 @@ import {
   generateMonthlyEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
+  getTopCitiesByOrders,
+  getTopCitiesByRevenue,
+  getGeographicMarkers,
+  getPeakHoursAnalysis,
+  getWeeklyPatterns,
+  getSeasonalTrends,
+  getHighValueCustomers,
 } from "@/lib/api";
 import { ServiceType, Order } from "@/lib/types";
 
@@ -78,6 +85,33 @@ export function useGearRefreshData() {
     ? calculateServiceGrowthProjection(data.byService, 6)
     : { nannies: [], "gear-refresh": [], "home-care": [] };
 
+  // Geographic analytics
+  const topCitiesByOrders = gearRefreshOrders.length > 0
+    ? getTopCitiesByOrders(filteredByService, 5)
+    : [];
+  const topCitiesByRevenue = gearRefreshOrders.length > 0
+    ? getTopCitiesByRevenue(filteredByService, 5)
+    : [];
+  const geographicMarkers = gearRefreshOrders.length > 0
+    ? getGeographicMarkers(filteredByService)
+    : [];
+
+  // Temporal analytics
+  const peakHours = gearRefreshOrders.length > 0
+    ? getPeakHoursAnalysis(gearRefreshOrders, 10)
+    : [];
+  const weeklyPatterns = gearRefreshOrders.length > 0
+    ? getWeeklyPatterns(gearRefreshOrders)
+    : [];
+  const seasonalTrends = gearRefreshOrders.length > 0
+    ? getSeasonalTrends(gearRefreshOrders)
+    : [];
+
+  // Customer analytics
+  const highValueCustomers = gearRefreshOrders.length > 0
+    ? getHighValueCustomers(gearRefreshOrders, 5)
+    : [];
+
   return {
     orders: gearRefreshOrders,
     stats,
@@ -87,6 +121,16 @@ export function useGearRefreshData() {
     topServices,
     revenueProjection,
     serviceGrowthProjection,
+    // Geographic data
+    topCitiesByOrders,
+    topCitiesByRevenue,
+    geographicMarkers,
+    // Temporal data
+    peakHours,
+    weeklyPatterns,
+    seasonalTrends,
+    // Customer data
+    highValueCustomers,
     isLoading,
     error,
   };

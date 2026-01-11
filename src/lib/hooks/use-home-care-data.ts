@@ -10,6 +10,13 @@ import {
   generateMonthlyEarningData,
   calculateRevenueProjection,
   calculateServiceGrowthProjection,
+  getTopCitiesByOrders,
+  getTopCitiesByRevenue,
+  getGeographicMarkers,
+  getPeakHoursAnalysis,
+  getWeeklyPatterns,
+  getSeasonalTrends,
+  getHighValueCustomers,
 } from "@/lib/api";
 import { ServiceType, Order } from "@/lib/types";
 
@@ -78,6 +85,33 @@ export function useHomeCareData() {
     ? calculateServiceGrowthProjection(data.byService, 6)
     : { nannies: [], "gear-refresh": [], "home-care": [] };
 
+  // Geographic analytics
+  const topCitiesByOrders = homeCareOrders.length > 0
+    ? getTopCitiesByOrders(filteredByService, 5)
+    : [];
+  const topCitiesByRevenue = homeCareOrders.length > 0
+    ? getTopCitiesByRevenue(filteredByService, 5)
+    : [];
+  const geographicMarkers = homeCareOrders.length > 0
+    ? getGeographicMarkers(filteredByService)
+    : [];
+
+  // Temporal analytics
+  const peakHours = homeCareOrders.length > 0
+    ? getPeakHoursAnalysis(homeCareOrders, 10)
+    : [];
+  const weeklyPatterns = homeCareOrders.length > 0
+    ? getWeeklyPatterns(homeCareOrders)
+    : [];
+  const seasonalTrends = homeCareOrders.length > 0
+    ? getSeasonalTrends(homeCareOrders)
+    : [];
+
+  // Customer analytics
+  const highValueCustomers = homeCareOrders.length > 0
+    ? getHighValueCustomers(homeCareOrders, 5)
+    : [];
+
   return {
     orders: homeCareOrders,
     stats,
@@ -87,6 +121,16 @@ export function useHomeCareData() {
     topServices,
     revenueProjection,
     serviceGrowthProjection,
+    // Geographic data
+    topCitiesByOrders,
+    topCitiesByRevenue,
+    geographicMarkers,
+    // Temporal data
+    peakHours,
+    weeklyPatterns,
+    seasonalTrends,
+    // Customer data
+    highValueCustomers,
     isLoading,
     error,
   };

@@ -12,6 +12,8 @@ import {
   ServiceBreakdown,
   PaymentStatus,
   MonthlyEarningData,
+  Address,
+  Location,
 } from "./types";
 import { getServiceConfig, allServices } from "./config";
 import { getPercentageChange } from "./utils";
@@ -837,6 +839,397 @@ export function getRecentTransactions(
     .slice(0, limit);
 }
 
+// Geographic Analytics Functions
+export interface CityStats {
+  city: string;
+  country: string;
+  orderCount: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+}
+
+export interface GeographicMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  city: string;
+  country: string;
+  orderCount: number;
+  totalRevenue: number;
+  serviceType: ServiceType;
+}
+
+export function getTopCitiesByOrders(
+  byService: Record<ServiceType, Order[]>,
+  limit: number = 10
+): CityStats[] {
+  const cityStats = new Map<string, CityStats>();
+
+  Object.entries(byService).forEach(([serviceType, orders]) => {
+    const confirmedOrders = orders.filter(o =>
+      ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+      getRequestStatus(o) !== "cancelled"
+    );
+
+    confirmedOrders.forEach(order => {
+      const location = getOrderLocation(order);
+      if (location.city && location.country) {
+        const key = `${location.city}-${location.country}`;
+        const revenue = getOrderTotal(order);
+
+        const existing = cityStats.get(key) || {
+          city: location.city,
+          country: location.country,
+          orderCount: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0,
+        };
+
+        existing.orderCount += 1;
+        existing.totalRevenue += revenue;
+        existing.averageOrderValue = existing.totalRevenue / existing.orderCount;
+
+        cityStats.set(key, existing);
+      }
+    });
+  });
+
+  return Array.from(cityStats.values())
+    .sort((a, b) => b.orderCount - a.orderCount)
+    .slice(0, limit);
+}
+
+export function getTopCitiesByRevenue(
+  byService: Record<ServiceType, Order[]>,
+  limit: number = 10
+): CityStats[] {
+  const cityStats = new Map<string, CityStats>();
+
+  Object.entries(byService).forEach(([serviceType, orders]) => {
+    const confirmedOrders = orders.filter(o =>
+      ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+      getRequestStatus(o) !== "cancelled"
+    );
+
+    confirmedOrders.forEach(order => {
+      const location = getOrderLocation(order);
+      if (location.city && location.country) {
+        const key = `${location.city}-${location.country}`;
+        const revenue = getOrderTotal(order);
+
+        const existing = cityStats.get(key) || {
+          city: location.city,
+          country: location.country,
+          orderCount: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0,
+        };
+
+        existing.orderCount += 1;
+        existing.totalRevenue += revenue;
+        existing.averageOrderValue = existing.totalRevenue / existing.orderCount;
+
+        cityStats.set(key, existing);
+      }
+    });
+  });
+
+  return Array.from(cityStats.values())
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, limit);
+}
+
+export function getGeographicMarkers(
+  byService: Record<ServiceType, Order[]>
+): GeographicMarker[] {
+  const markers: GeographicMarker[] = [];
+
+  Object.entries(byService).forEach(([serviceType, orders]) => {
+    const confirmedOrders = orders.filter(o =>
+      ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+      getRequestStatus(o) !== "cancelled"
+    );
+
+    // Group orders by location
+    const locationGroups = new Map<string, Order[]>();
+
+    confirmedOrders.forEach(order => {
+      const location = getOrderLocation(order);
+      if (location.lat && location.lng && location.city && location.country) {
+        const key = `${location.lat}-${location.lng}-${location.city}-${location.country}`;
+        if (!locationGroups.has(key)) {
+          locationGroups.set(key, []);
+        }
+        locationGroups.get(key)!.push(order);
+      }
+    });
+
+    // Create markers from grouped locations
+    locationGroups.forEach((orders, key) => {
+      const location = getOrderLocation(orders[0]);
+      const totalRevenue = orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
+
+      markers.push({
+        id: key,
+        lat: location.lat!,
+        lng: location.lng!,
+        city: location.city!,
+        country: location.country!,
+        orderCount: orders.length,
+        totalRevenue,
+        serviceType: serviceType as ServiceType,
+      });
+    });
+  });
+
+  return markers;
+}
+
+// Temporal Analytics Functions
+export interface PeakHourData {
+  hour: number;
+  orderCount: number;
+  totalRevenue: number;
+  displayHour: string;
+}
+
+export interface WeeklyPatternData {
+  day: string;
+  dayIndex: number;
+  orderCount: number;
+  totalRevenue: number;
+}
+
+export interface SeasonalData {
+  month: string;
+  monthIndex: number;
+  orderCount: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+}
+
+export function getPeakHoursAnalysis(
+  orders: Order[],
+  limit: number = 24
+): PeakHourData[] {
+  const hourStats = new Map<number, { count: number; revenue: number }>();
+
+  const confirmedOrders = orders.filter(o =>
+    ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+    getRequestStatus(o) !== "cancelled"
+  );
+
+  confirmedOrders.forEach(order => {
+    const orderDate = new Date(order.createdAt);
+    const hour = orderDate.getHours();
+
+    const existing = hourStats.get(hour) || { count: 0, revenue: 0 };
+    existing.count += 1;
+    existing.revenue += getOrderTotal(order);
+    hourStats.set(hour, existing);
+  });
+
+  return Array.from(hourStats.entries())
+    .map(([hour, stats]) => ({
+      hour,
+      orderCount: stats.count,
+      totalRevenue: stats.revenue,
+      displayHour: `${hour.toString().padStart(2, '0')}:00`,
+    }))
+    .sort((a, b) => b.orderCount - a.orderCount)
+    .slice(0, limit);
+}
+
+export function getWeeklyPatterns(orders: Order[]): WeeklyPatternData[] {
+  const dayStats = new Map<number, { count: number; revenue: number; dayName: string }>();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const confirmedOrders = orders.filter(o =>
+    ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+    getRequestStatus(o) !== "cancelled"
+  );
+
+  confirmedOrders.forEach(order => {
+    const orderDate = new Date(order.createdAt);
+    const dayIndex = orderDate.getDay();
+
+    const existing = dayStats.get(dayIndex) || {
+      count: 0,
+      revenue: 0,
+      dayName: dayNames[dayIndex]
+    };
+    existing.count += 1;
+    existing.revenue += getOrderTotal(order);
+    dayStats.set(dayIndex, existing);
+  });
+
+  return Array.from(dayStats.entries())
+    .map(([dayIndex, stats]) => ({
+      day: stats.dayName,
+      dayIndex,
+      orderCount: stats.count,
+      totalRevenue: stats.revenue,
+    }))
+    .sort((a, b) => a.dayIndex - b.dayIndex); // Sort by day of week
+}
+
+export function getSeasonalTrends(orders: Order[]): SeasonalData[] {
+  const monthStats = new Map<number, { count: number; revenue: number }>();
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const confirmedOrders = orders.filter(o =>
+    ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+    getRequestStatus(o) !== "cancelled"
+  );
+
+  confirmedOrders.forEach(order => {
+    const orderDate = new Date(order.createdAt);
+    const monthIndex = orderDate.getMonth();
+
+    const existing = monthStats.get(monthIndex) || { count: 0, revenue: 0 };
+    existing.count += 1;
+    existing.revenue += getOrderTotal(order);
+    monthStats.set(monthIndex, existing);
+  });
+
+  return Array.from(monthStats.entries())
+    .map(([monthIndex, stats]) => ({
+      month: monthNames[monthIndex],
+      monthIndex,
+      orderCount: stats.count,
+      totalRevenue: stats.revenue,
+      averageOrderValue: stats.count > 0 ? stats.revenue / stats.count : 0,
+    }))
+    .sort((a, b) => a.monthIndex - b.monthIndex); // Sort by month
+}
+
+// Customer Insights Functions
+export interface HighValueCustomer {
+  id: string;
+  name: string;
+  email?: string;
+  totalSpent: number;
+  orderCount: number;
+  averageOrderValue: number;
+  lastOrderDate: string;
+}
+
+export function getHighValueCustomers(
+  orders: Order[],
+  limit: number = 10
+): HighValueCustomer[] {
+  const customerStats = new Map<string, {
+    id: string;
+    name: string;
+    email?: string;
+    totalSpent: number;
+    orderCount: number;
+    lastOrderDate: string;
+  }>();
+
+  const confirmedOrders = orders.filter(o =>
+    ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"].includes(getPaymentStatus(o)) &&
+    getRequestStatus(o) !== "cancelled"
+  );
+
+  confirmedOrders.forEach(order => {
+    const customerId = getCustomerId(order);
+    const customerName = getCustomerName(order);
+    const customerEmail = getCustomerEmail(order);
+    const orderTotal = getOrderTotal(order);
+    const orderDate = order.createdAt;
+
+    if (customerId && customerName) {
+      const existing = customerStats.get(customerId) || {
+        id: customerId,
+        name: customerName,
+        email: customerEmail,
+        totalSpent: 0,
+        orderCount: 0,
+        lastOrderDate: orderDate,
+      };
+
+      existing.totalSpent += orderTotal;
+      existing.orderCount += 1;
+
+      // Update last order date if this is more recent
+      if (new Date(orderDate) > new Date(existing.lastOrderDate)) {
+        existing.lastOrderDate = orderDate;
+      }
+
+      customerStats.set(customerId, existing);
+    }
+  });
+
+  return Array.from(customerStats.values())
+    .map(customer => ({
+      ...customer,
+      averageOrderValue: customer.totalSpent / customer.orderCount,
+    }))
+    .sort((a, b) => b.totalSpent - a.totalSpent)
+    .slice(0, limit);
+}
+
+// Helper functions for customer data
+function getCustomerId(order: Order): string | undefined {
+  // For home care orders, use email as customer identifier
+  if ("email" in order && order.email) {
+    return order.email;
+  }
+  // For other orders with customer object, use customer email
+  if ("customer" in order && order.customer?.email) {
+    return order.customer.email;
+  }
+  // Fallback to order ID for unique identification
+  if ("documentId" in order) {
+    return order.documentId;
+  }
+  return undefined;
+}
+
+function getCustomerEmail(order: Order): string | undefined {
+  if ("customer" in order && order.customer?.email) {
+    return order.customer.email;
+  }
+  if ("email" in order) {
+    return order.email;
+  }
+  return undefined;
+}
+
+// Helper function to get order location (handles different order types)
+function getOrderLocation(order: Order): {
+  city?: string;
+  country?: string;
+  lat?: number;
+  lng?: number;
+} {
+  // Check for home care address
+  if ("address" in order && order.address) {
+    const addr = order.address as Address;
+    return {
+      city: addr.city,
+      country: addr.country,
+    };
+  }
+
+  // Check for location object
+  if ("location" in order && order.location) {
+    const loc = order.location;
+    return {
+      city: loc.city,
+      country: loc.country,
+      lat: loc.lat,
+      lng: loc.lng,
+    };
+  }
+
+  return {};
+}
+
 // Get top services/packages by revenue
 export function getTopServices(
   byService: Record<ServiceType, Order[]>,
@@ -932,10 +1325,13 @@ export function getTopProducts(
 
   const confirmedStatuses = ["Payment confirmed", "Completed", "Sent to vendor", "QC/Feedback"];
 
-  Object.entries(byService).forEach(([serviceType, orders]) => {
-    const confirmedOrders = orders.filter(o => confirmedStatuses.includes(getPaymentStatus(o)));
+   Object.entries(byService).forEach(([serviceType, orders]) => {
+     const confirmedOrders = orders.filter(o =>
+       confirmedStatuses.includes(getPaymentStatus(o)) &&
+       getRequestStatus(o) !== "cancelled"
+     );
 
-    confirmedOrders.forEach(order => {
+     confirmedOrders.forEach(order => {
       const productName = inferProductName(order, serviceType as ServiceType);
       const key = `${serviceType}:${productName}`;
 

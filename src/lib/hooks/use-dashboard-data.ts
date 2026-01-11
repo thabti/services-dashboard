@@ -4,12 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchAllOrders,
   calculateDashboardStats,
-  calculateServiceBreakdown,
   generateSalesChartData,
   getRecentTransactions,
   getTopProducts,
   calculateVisitorsByService,
   generateMonthlyEarningData,
+  calculateServiceBreakdown,
+  getTopCitiesByOrders,
+  getTopCitiesByRevenue,
+  getGeographicMarkers,
+  getPeakHoursAnalysis,
+  getWeeklyPatterns,
+  getSeasonalTrends,
+  getHighValueCustomers,
 } from "@/lib/api";
 
 // Query keys
@@ -79,6 +86,93 @@ export function useRecentTransactions(limit: number = 10) {
 
   return {
     transactions,
+    isLoading,
+    error,
+  };
+}
+
+// Geographic Analytics Hooks
+export function useTopCitiesByOrders(limit: number = 10) {
+  const { data, isLoading, error } = useDashboardData();
+
+  const cities = data ? getTopCitiesByOrders(data.byService, limit) : [];
+
+  return {
+    cities,
+    isLoading,
+    error,
+  };
+}
+
+export function useTopCitiesByRevenue(limit: number = 10) {
+  const { data, isLoading, error } = useDashboardData();
+
+  const cities = data ? getTopCitiesByRevenue(data.byService, limit) : [];
+
+  return {
+    cities,
+    isLoading,
+    error,
+  };
+}
+
+export function useGeographicMarkers() {
+  const { data, isLoading, error } = useDashboardData();
+
+  const markers = data ? getGeographicMarkers(data.byService) : [];
+
+  return {
+    markers,
+    isLoading,
+    error,
+  };
+}
+
+// Temporal Analytics Hooks
+export function usePeakHoursAnalysis(limit: number = 24) {
+  const { data, isLoading, error } = useDashboardData();
+
+  const peakHours = data ? getPeakHoursAnalysis(data.orders, limit) : [];
+
+  return {
+    peakHours,
+    isLoading,
+    error,
+  };
+}
+
+export function useWeeklyPatterns() {
+  const { data, isLoading, error } = useDashboardData();
+
+  const weeklyPatterns = data ? getWeeklyPatterns(data.orders) : [];
+
+  return {
+    weeklyPatterns,
+    isLoading,
+    error,
+  };
+}
+
+export function useSeasonalTrends() {
+  const { data, isLoading, error } = useDashboardData();
+
+  const seasonalTrends = data ? getSeasonalTrends(data.orders) : [];
+
+  return {
+    seasonalTrends,
+    isLoading,
+    error,
+  };
+}
+
+// Customer Analytics Hooks
+export function useHighValueCustomers(limit: number = 10) {
+  const { data, isLoading, error } = useDashboardData();
+
+  const customers = data ? getHighValueCustomers(data.orders, limit) : [];
+
+  return {
+    customers,
     isLoading,
     error,
   };
