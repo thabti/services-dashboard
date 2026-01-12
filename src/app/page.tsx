@@ -30,6 +30,7 @@ import {
   useRecentTransactions,
   useTopServices,
 } from "@/lib/hooks/use-dashboard-data";
+
 export default function Dashboard() {
   const { stats, isLoading: statsLoading } = useDashboardStats();
   const { chartData, isLoading: chartLoading } = useSalesChartData();
